@@ -28,12 +28,22 @@ type AuthResponse struct {
 	Token string `json:"token"`
 }
 
+// ZipURLResponse is the response that comes back from the zip endpoint
+type ZipURLResponse struct {
+	URL string `json:"zip_url"`
+}
+
 // ClusterClient accesses RCS
 type ClusterClient struct {
 	client   *http.Client
 	Username string
 	Token    string
 	Endpoint string
+}
+
+// ErrorResponse is the JSON formatted error response from RCS
+type ErrorResponse struct {
+	Error string `json:"error"`
 }
 
 // Cluster is a cluster
@@ -146,17 +156,64 @@ func (c *ClusterClient) List() ([]Cluster, error) {
 	return clusters, nil
 }
 
-// Get a cluster by cluster name
-func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
-	uri := path.Join("/clusters", c.Username, clusterName)
-	resp, err := c.NewRequest("GET", uri, nil)
-
+func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
+	if err != nil {
+		return nil, err
+	}
 	cluster := new(Cluster)
 	err = json.NewDecoder(resp.Body).Decode(&cluster)
 	if err != nil {
 		return nil, err
 	}
 	return cluster, nil
+}
+
+// Get a cluster by cluster name
+func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
+	uri := path.Join("/clusters", c.Username, clusterName)
+	resp, err := c.NewRequest("GET", uri, nil)
+	return clusterFromResponse(resp, err)
+}
+
+// ZipURL returns the URL for downloading credentials
+func (c *ClusterClient) ZipURL(clusterName string) (string, error) {
+	uri := path.Join("/clusters", c.Username, clusterName, "zip")
+	resp, err := c.NewRequest("GET", uri, nil)
+	if err != nil {
+		return "", err
+	}
+
+	var zipURLResp ZipURLResponse
+
+	err = json.NewDecoder(resp.Body).Decode(&zipURLResp)
+
+	if err != nil {
+		return "", err
+	}
+
+	return zipURLResp.URL, nil
+}
+
+// Grow increases a cluster by the provided number of nodes
+func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
+	incr := make(map[string]json.Number)
+	incr["nodes"] = json.Number(nodes)
+	growthRequest, err := json.Marshal(incr)
+	if err != nil {
+		return nil, err
+	}
+	r := bytes.NewReader(growthRequest)
+
+	uri := path.Join("/clusters", c.Username, clusterName, "grow")
+	resp, err := c.NewRequest("POST", uri, r)
+	return clusterFromResponse(resp, err)
+}
+
+// Delete nukes a cluster out of existence
+func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
+	uri := path.Join("/clusters", c.Username, clusterName)
+	resp, err := c.NewRequest("DELETE", uri, nil)
+	return clusterFromResponse(resp, err)
 }
 
 func main() {
@@ -180,7 +237,15 @@ func main() {
 		panic(err)
 	}
 
-	c, err := clusterClient.Get(l[0].ClusterName)
+	fmt.Println(l)
+
+	//c, err := clusterClient.ZipURL(l[0].ClusterName)
+
+	c, err := clusterClient.Delete("dekiagari")
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	fmt.Println(c)
 
 }
