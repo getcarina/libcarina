@@ -48,22 +48,22 @@ type ErrorResponse struct {
 
 // Cluster is a cluster
 type Cluster struct {
-	AutoScale   bool   `json:"autoscale"`
 	ClusterName string `json:"cluster_name"`
+	Username    string `json:"username"`
 
 	// Flavor of compute to use for cluster, should be a default value currently
-	Flavor string `json:"flavor"`
+	Flavor string `json:"flavor,omitempty"`
 
 	// UUID of image to use for cluster, should be a default value currently
-	Image string `json:"image, omitempty"`
+	Image string `json:"image,omitempty"`
 
 	// Node is optional, but allowed on create
 	Nodes json.Number `json:"nodes,omitempty"`
 
-	Status   string `json:"status,omitempty"`
-	TaskID   string `json:"task_id,omitempty"`
-	Token    string `json:"token,omitempty"`
-	Username string `json:"username"`
+	AutoScale bool   `json:"autoscale,omitempty"`
+	Status    string `json:"status,omitempty"`
+	TaskID    string `json:"task_id,omitempty"`
+	Token     string `json:"token,omitempty"`
 }
 
 // NewClusterClient creates a new ClusterClient
@@ -175,6 +175,20 @@ func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
 	return clusterFromResponse(resp, err)
 }
 
+// Create a new cluster with cluster options
+func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
+	clusterOptsJSON, err := json.Marshal(clusterOpts)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Println(string(clusterOptsJSON))
+
+	body := bytes.NewReader(clusterOptsJSON)
+	uri := path.Join("/clusters", c.Username)
+	resp, err := c.NewRequest("POST", uri, body)
+	return clusterFromResponse(resp, err)
+}
+
 // ZipURL returns the URL for downloading credentials
 func (c *ClusterClient) ZipURL(clusterName string) (string, error) {
 	uri := path.Join("/clusters", c.Username, clusterName, "zip")
@@ -241,11 +255,16 @@ func main() {
 
 	//c, err := clusterClient.ZipURL(l[0].ClusterName)
 
-	c, err := clusterClient.Delete("dekiagari")
+	clusterOpts := Cluster{
+		Username:    clusterClient.Username,
+		ClusterName: "WHOA",
+		Nodes:       json.Number(5),
+	}
+
+	c, err := clusterClient.Create(clusterOpts)
 	if err != nil {
 		fmt.Println(err)
 	}
-
 	fmt.Println(c)
 
 }
