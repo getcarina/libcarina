@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -36,15 +37,22 @@ type ClusterClient struct {
 
 // Cluster is a cluster
 type Cluster struct {
-	AutoScale   bool        `json:"autoscale"`
-	ClusterName string      `json:"cluster_name"`
-	Flavor      string      `json:"flavor"`
-	Image       string      `json:"image"`
-	Nodes       json.Number `json:"nodes"`
-	Status      string      `json:"status"`
-	TaskID      string      `json:"task_id"`
-	Token       string      `json:"token"`
-	Username    string      `json:"username"`
+	AutoScale   bool   `json:"autoscale"`
+	ClusterName string `json:"cluster_name"`
+
+	// Flavor of compute to use for cluster, should be a default value currently
+	Flavor string `json:"flavor"`
+
+	// UUID of image to use for cluster, should be a default value currently
+	Image string `json:"image, omitempty"`
+
+	// Node is optional, but allowed on create
+	Nodes json.Number `json:"nodes,omitempty"`
+
+	Status   string `json:"status,omitempty"`
+	TaskID   string `json:"task_id,omitempty"`
+	Token    string `json:"token,omitempty"`
+	Username string `json:"username"`
 }
 
 // NewClusterClient creates a new ClusterClient
@@ -97,11 +105,9 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 	}, nil
 }
 
-// List the current clusteres
-func (c *ClusterClient) List() ([]Cluster, error) {
-	clusters := []Cluster{}
-
-	req, err := http.NewRequest("GET", BetaEndpoint+"/clusters/"+c.Username, nil)
+// NewRequest handles a request using auth used by RCS
+func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequest(method, BetaEndpoint+uri, body)
 	if err != nil {
 		return nil, err
 	}
@@ -118,6 +124,18 @@ func (c *ClusterClient) List() ([]Cluster, error) {
 			return nil, errors.New(resp.Status)
 		}
 		return nil, errors.New(string(b))
+	}
+
+	return resp, nil
+}
+
+// List the current clusters
+func (c *ClusterClient) List() ([]Cluster, error) {
+	clusters := []Cluster{}
+
+	resp, err := c.NewRequest("GET", "/clusters/"+c.Username, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&clusters)
