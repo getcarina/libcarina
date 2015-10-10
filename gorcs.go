@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
+	"reflect"
+	"strconv"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -58,12 +61,55 @@ type Cluster struct {
 	Image string `json:"image,omitempty"`
 
 	// Node is optional, but allowed on create
-	Nodes json.Number `json:"nodes,omitempty"`
+	// Sadly it comes back as string instead of int in all cases
+	// with the API
+	Nodes number `json:"nodes,omitempty"`
 
 	AutoScale bool   `json:"autoscale,omitempty"`
 	Status    string `json:"status,omitempty"`
 	TaskID    string `json:"task_id,omitempty"`
 	Token     string `json:"token,omitempty"`
+}
+
+// Specify this type for any struct fields that
+// might be unmarshaled from JSON numbers of the following
+// types: floats, integers, scientific notation, or strings
+type number float64
+
+func (n number) Int64() int64 {
+	return int64(n)
+}
+
+func (n number) Int() int {
+	return int(n)
+}
+
+func (n number) Float64() float64 {
+	return float64(n)
+}
+
+// Required to enforce that string values are attempted to be parsed as numbers
+func (n *number) UnmarshalJSON(data []byte) error {
+	var f float64
+	var err error
+	if data[0] == '"' {
+		f, err = strconv.ParseFloat(string(data[1:len(data)-1]), 64)
+		if err != nil {
+			return &json.UnmarshalTypeError{
+				Value: string(data),
+				Type:  reflect.TypeOf(*n),
+			}
+		}
+	} else {
+		if err := json.Unmarshal(data, &f); err != nil {
+			return &json.UnmarshalTypeError{
+				Value: string(data),
+				Type:  reflect.TypeOf(*n),
+			}
+		}
+	}
+	*n = number(f)
+	return nil
 }
 
 // NewClusterClient creates a new ClusterClient
@@ -246,25 +292,28 @@ func main() {
 		panic(err)
 	}
 
-	l, err := clusterClient.List()
-	if err != nil {
-		panic(err)
+	flag.Parse()
+
+	command := flag.Arg(0)
+	clusterName := flag.Arg(1)
+
+	var i interface{}
+
+	switch command {
+	case "list":
+		i, err = clusterClient.List()
+	case "get":
+		i, err = clusterClient.Get(clusterName)
+	case "delete":
+		i, err = clusterClient.Delete(clusterName)
+	case "zipurl":
+		i, err = clusterClient.ZipURL(clusterName)
 	}
 
-	fmt.Println(l)
-
-	//c, err := clusterClient.ZipURL(l[0].ClusterName)
-
-	clusterOpts := Cluster{
-		Username:    clusterClient.Username,
-		ClusterName: "WHOA",
-		Nodes:       json.Number(5),
-	}
-
-	c, err := clusterClient.Create(clusterOpts)
 	if err != nil {
 		fmt.Println(err)
+		os.Exit(2)
 	}
-	fmt.Println(c)
+	fmt.Println(i)
 
 }
