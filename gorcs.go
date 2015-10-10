@@ -36,15 +36,15 @@ type ClusterClient struct {
 
 // Cluster is a cluster
 type Cluster struct {
-	AutoScale   bool   `json:"autoscale"`
-	ClusterName string `json:"cluster_name"`
-	Flavor      string `json:"flavor"`
-	Image       string `json:"image"`
-	Nodes       int    `json:"nodes"`
-	Status      string `json:"status"`
-	TaskID      string `json:"task_id,-"`
-	Token       string `json:"token"`
-	Username    string `json:"username"`
+	AutoScale   bool        `json:"autoscale"`
+	ClusterName string      `json:"cluster_name"`
+	Flavor      string      `json:"flavor"`
+	Image       string      `json:"image"`
+	Nodes       json.Number `json:"nodes"`
+	Status      string      `json:"status"`
+	TaskID      string      `json:"task_id"`
+	Token       string      `json:"token"`
+	Username    string      `json:"username"`
 }
 
 // NewClusterClient creates a new ClusterClient
@@ -120,20 +120,11 @@ func (c *ClusterClient) List() ([]Cluster, error) {
 		return nil, errors.New(string(b))
 	}
 
-	b, err := ioutil.ReadAll(resp.Body)
+	err = json.NewDecoder(resp.Body).Decode(&clusters)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(b))
-
 	return clusters, nil
-
-	// err = json.NewDecoder(resp.Body).Decode(&clusters)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	//
-	// return clusters, nil
 }
 
 func main() {
