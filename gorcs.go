@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"path"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -145,6 +146,19 @@ func (c *ClusterClient) List() ([]Cluster, error) {
 	return clusters, nil
 }
 
+// Get a cluster by cluster name
+func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
+	uri := path.Join("/clusters", c.Username, clusterName)
+	resp, err := c.NewRequest("GET", uri, nil)
+
+	cluster := new(Cluster)
+	err = json.NewDecoder(resp.Body).Decode(&cluster)
+	if err != nil {
+		return nil, err
+	}
+	return cluster, nil
+}
+
 func main() {
 	username := os.Getenv("RACKSPACE_USERNAME")
 	password := os.Getenv("RACKSPACE_PASSWORD")
@@ -166,6 +180,7 @@ func main() {
 		panic(err)
 	}
 
-	fmt.Println(l)
+	c, err := clusterClient.Get(l[0].ClusterName)
+	fmt.Println(c)
 
 }
