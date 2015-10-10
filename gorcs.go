@@ -1,6 +1,7 @@
 package main
 
 import (
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"path"
 	"reflect"
 	"strconv"
+	"strings"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -223,11 +225,15 @@ func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
 
 // Create a new cluster with cluster options
 func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
+	// Even though username is in the URI path, the API expects the username
+	// inside the body
+	if clusterOpts.Username == "" {
+		clusterOpts.Username = c.Username
+	}
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(clusterOptsJSON))
 
 	body := bytes.NewReader(clusterOptsJSON)
 	uri := path.Join("/clusters", c.Username)
@@ -252,6 +258,163 @@ func (c *ClusterClient) ZipURL(clusterName string) (string, error) {
 	}
 
 	return zipURLResp.URL, nil
+}
+
+// temporary struct for dumping contents into
+type credentials struct {
+	README    []byte
+	Cert      []byte
+	Key       []byte
+	CA        []byte
+	CAKey     []byte
+	DockerEnv []byte
+	UUID      UUID
+}
+
+// Credentials holds the keys to the kingdom
+type Credentials struct {
+	Cert       string
+	Key        string
+	CA         string
+	CAKey      string
+	DockerEnv  string
+	DockerHost string
+}
+
+// UUID represents a UUID value. UUIDs can be compared and set to other values
+// and accessed by byte.
+type UUID [16]byte
+
+func extractUUID(s string) (UUID, error) {
+	s = strings.Trim(s, "/")
+	var u UUID
+	var err error
+
+	if len(s) != 36 {
+		return UUID{}, fmt.Errorf("Invalid UUID")
+	}
+	format := "%08x-%04x-%04x-%04x-%012x"
+
+	// create stack addresses for each section of the uuid.
+	p := make([][]byte, 5)
+
+	if _, err := fmt.Sscanf(s, format, &p[0], &p[1], &p[2], &p[3], &p[4]); err != nil {
+		return u, err
+	}
+
+	copy(u[0:4], p[0])
+	copy(u[4:6], p[1])
+	copy(u[6:8], p[2])
+	copy(u[8:10], p[3])
+	copy(u[10:16], p[4])
+
+	return u, err
+}
+
+func (c *ClusterClient) zippie(clusterName string) (*Credentials, error) {
+	url, err := c.ZipURL(clusterName)
+	if err != nil {
+		return nil, err
+	}
+	zr, err := fetchZip(url)
+	if err != nil || len(zr.File) < 6 {
+		return nil, err
+	}
+
+	// fetch the contents for each credential/note
+	creds := new(credentials)
+	for _, zf := range zr.File {
+		// dir should be the UUID that comes out in the bundle
+		dir, fname := path.Split(zf.Name)
+		fi := zf.FileInfo()
+
+		if fi.IsDir() {
+			// get uuid that's part of the zip dump
+			creds.UUID, err = extractUUID(dir)
+			if err != nil {
+				return nil, errors.New("Unable to read UUID from directory name in zip file: " + err.Error())
+			}
+			continue
+		}
+
+		rc, err := zf.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		b, err := ioutil.ReadAll(rc)
+		if err != nil {
+			return nil, err
+		}
+
+		switch fname {
+		case "ca.pem":
+			creds.CA = b
+		case "README.md":
+			creds.README = b
+		case "ca-key.pem":
+			creds.CAKey = b
+		case "docker.env":
+			creds.DockerEnv = b
+		case "cert.pem":
+			creds.Cert = b
+		case "key.pem":
+			creds.Key = b
+		}
+	}
+
+	cleanCreds := Credentials{
+		Cert:      string(creds.Cert),
+		Key:       string(creds.Key),
+		CA:        string(creds.CA),
+		CAKey:     string(creds.CAKey),
+		DockerEnv: string(creds.DockerEnv),
+	}
+
+	sourceLines := strings.Split(cleanCreds.DockerEnv, "\n")
+	for _, line := range sourceLines {
+		if strings.Index(line, "export ") == 0 {
+			varDecl := strings.TrimRight(line[7:], "\n")
+			eqLocation := strings.Index(varDecl, "=")
+
+			varName := varDecl[:eqLocation]
+			varValue := varDecl[eqLocation+1:]
+
+			switch varName {
+			case "DOCKER_HOST":
+				cleanCreds.DockerHost = varValue
+			}
+
+		}
+	}
+
+	return &cleanCreds, nil
+}
+
+func fetchZip(zipurl string) (*zip.Reader, error) {
+	resp, err := http.Get(zipurl)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		b, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, errors.New(resp.Status)
+		}
+		return nil, errors.New(string(b))
+	}
+
+	buf := &bytes.Buffer{}
+
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	b := bytes.NewReader(buf.Bytes())
+	return zip.NewReader(b, int64(b.Len()))
 }
 
 // Grow increases a cluster by the provided number of nodes
@@ -308,6 +471,18 @@ func main() {
 		i, err = clusterClient.Delete(clusterName)
 	case "zipurl":
 		i, err = clusterClient.ZipURL(clusterName)
+	case "create":
+		c := Cluster{
+			ClusterName: clusterName,
+		}
+		i, err = clusterClient.Create(c)
+	case "zippie":
+		creds, err := clusterClient.zippie(clusterName)
+		if err != nil {
+			break
+		}
+		i = creds
+
 	}
 
 	if err != nil {
