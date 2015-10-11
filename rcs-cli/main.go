@@ -12,36 +12,50 @@ import (
 )
 
 func main() {
-	username := os.Getenv("RACKSPACE_USERNAME")
-	password := os.Getenv("RACKSPACE_PASSWORD")
+	var username, password, endpoint string
 
-	if username == "" || password == "" {
-		fmt.Println("Need the RACKSPACE_USERNAME and RACKSPACE_PASSWORD environment variables set.")
-		os.Exit(1)
-	}
+	flag.Usage = usage
 
-	endpoint := rcs.BetaEndpoint
-
-	clusterClient, err := rcs.NewClusterClient(endpoint, username, password)
-	if err != nil {
-		panic(err)
-	}
-
+	flag.StringVar(&username, "username", "", "Rackspace username")
+	flag.StringVar(&password, "password", "", "Rackspace password")
+	flag.StringVar(&endpoint, "endpoint", rcs.BetaEndpoint, "RCS API Endpoint")
 	flag.Parse()
 
-	if flag.NArg() < 1 {
+	if username == "" && os.Getenv("RACKSPACE_USERNAME") != "" {
+		username = os.Getenv("RACKSPACE_USERNAME")
+	}
+	if password == "" && os.Getenv("RACKSPACE_PASSWORD") != "" {
+		password = os.Getenv("RACKSPACE_PASSWORD")
+	}
+
+	if username == "" || password == "" {
+		fmt.Println("Either set --username and --password or set the " +
+			"RACKSPACE_USERNAME and RACKSPACE_PASSWORD environment variables.")
+		fmt.Println()
 		usage()
 		os.Exit(1)
 	}
 
-	var clusterName string
-	command := flag.Arg(0)
-	if command != "list" {
-		clusterName = flag.Arg(1)
+	var command, clusterName string
+
+	command = flag.Arg(0)
+	clusterName = flag.Arg(1)
+
+	switch {
+	case flag.NArg() < 1 || (command != "list" && flag.NArg() < 2):
+		usage()
+		os.Exit(2)
 	}
 
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
+
+	clusterClient, err := rcs.NewClusterClient(endpoint, username, password)
+	if err != nil {
+		simpleErr(w, err)
+		os.Exit(3)
+	}
+
 	switch command {
 	case "list":
 		clusters, err := clusterClient.List()
@@ -67,6 +81,9 @@ func main() {
 		}
 		cluster, err := clusterClient.Create(c)
 		writeCluster(w, cluster, err)
+
+		// credentials is the least thought through bit of this code
+		// pretend you never saw this
 	case "credentials":
 		creds, err := clusterClient.GetCredentials(clusterName)
 		if err != nil {
@@ -79,9 +96,8 @@ func main() {
 	w.Flush()
 
 	if err != nil {
-		fmt.Fprintf(w, "ERROR: %v", err)
-		w.Flush()
-		os.Exit(2)
+		simpleErr(w, err)
+		os.Exit(4)
 	}
 }
 
@@ -98,16 +114,33 @@ func writeCluster(w *tabwriter.Writer, cluster *rcs.Cluster, err error) {
 	w.Write([]byte(s + "\n"))
 }
 
+func simpleErr(w *tabwriter.Writer, err error) {
+	fmt.Fprintf(w, "ERROR: %v", err)
+	w.Flush()
+}
+
 func usage() {
 	fmt.Println("NAME:")
 	fmt.Println("  rcs-cli - command line interface to manage swarm clusters")
 	fmt.Println("USAGE:")
-	fmt.Println("  rcs-cli <command> [clustername]")
+	fmt.Println("  rcs-cli <command> [clustername] [-username <username>] [-password <password>] [-endpoint <endpoint>]")
 	fmt.Println()
 	fmt.Println("COMMANDS:")
 	fmt.Println("  rcs-cli list")
-	fmt.Println("  rcs-cli create clustername")
-	fmt.Println("  rcs-cli get clustername")
-	fmt.Println("  rcs-cli delete clustername")
-	fmt.Println("  rcs-cli zipurl clustername")
+	fmt.Println("  rcs-cli create <clustername>")
+	fmt.Println("  rcs-cli get <clustername>")
+	fmt.Println("  rcs-cli delete <clustername>")
+	fmt.Println("  rcs-cli zipurl <clustername>")
+	fmt.Println()
+	fmt.Println("FLAGS:")
+	fmt.Println("  -endpoint string")
+	fmt.Println("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")")
+	fmt.Println("  -password string")
+	fmt.Println("    Rackspace password")
+	fmt.Println("  -username string")
+	fmt.Println("    Rackspace username")
+	fmt.Println()
+	fmt.Println("ENVIRONMENT VARIABLES:")
+	fmt.Println("  RACKSPACE_USERNAME - set instead of -username")
+	fmt.Println("  RACKSPACE_PASSWORD - set instead of -password")
 }

@@ -127,7 +127,7 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 	}
 	data := bytes.NewBuffer(b)
 
-	req, err := http.NewRequest("POST", BetaEndpoint+"/auth", data)
+	req, err := http.NewRequest("POST", endpoint+"/auth", data)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 
 // NewRequest handles a request using auth used by RCS
 func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(method, BetaEndpoint+uri, body)
+	req, err := http.NewRequest(method, c.Endpoint+uri, body)
 	if err != nil {
 		return nil, err
 	}
