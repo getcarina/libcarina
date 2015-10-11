@@ -239,8 +239,8 @@ func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
 	return clusterFromResponse(resp, err)
 }
 
-// ZipURL returns the URL for downloading credentials
-func (c *ClusterClient) ZipURL(clusterName string) (string, error) {
+// GetZipURL returns the URL for downloading credentials
+func (c *ClusterClient) GetZipURL(clusterName string) (string, error) {
 	uri := path.Join("/clusters", c.Username, clusterName, "zip")
 	resp, err := c.NewRequest("GET", uri, nil)
 	if err != nil {
@@ -312,7 +312,7 @@ func extractUUID(s string) (UUID, error) {
 
 // GetCredentials returns a Credentials struct for the given cluster name
 func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error) {
-	url, err := c.ZipURL(clusterName)
+	url, err := c.GetZipURL(clusterName)
 	if err != nil {
 		return nil, err
 	}
