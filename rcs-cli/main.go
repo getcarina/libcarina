@@ -9,7 +9,22 @@ import (
 	"text/tabwriter"
 
 	rcs "github.com/rgbkrk/gorcs"
+	"github.com/samalba/dockerclient"
 )
+
+func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
+	tlsConfig, err := creds.GetTLSConfig()
+	if err != nil {
+		return nil, err
+	}
+
+	docker, err := dockerclient.NewDockerClient(creds.DockerHost, tlsConfig)
+	if err != nil {
+		return nil, err
+	}
+	info, err := docker.Info()
+	return info, err
+}
 
 func main() {
 	var username, password, endpoint string
@@ -53,12 +68,14 @@ func main() {
 	clusterClient, err := rcs.NewClusterClient(endpoint, username, password)
 	if err != nil {
 		simpleErr(w, err)
+		w.Flush()
 		os.Exit(3)
 	}
 
 	switch command {
 	case "list":
-		clusters, err := clusterClient.List()
+		var clusters []rcs.Cluster
+		clusters, err = clusterClient.List()
 		if err == nil {
 			for _, cluster := range clusters {
 				writeCluster(w, &cluster, err)
@@ -82,23 +99,26 @@ func main() {
 		cluster, err := clusterClient.Create(c)
 		writeCluster(w, cluster, err)
 
-		// credentials is the least thought through bit of this code
-		// pretend you never saw this
-	case "credentials":
+	case "docker-info":
 		creds, err := clusterClient.GetCredentials(clusterName)
 		if err != nil {
-			fmt.Println(creds)
+			break
 		}
+		info, err := dockerInfo(creds)
+		fmt.Fprintf(w, "%+v\n", info)
 	default:
 		usage()
 		err = errors.New("command " + command + " not recognized")
 	}
-	w.Flush()
+	exitCode := 0
 
 	if err != nil {
 		simpleErr(w, err)
-		os.Exit(4)
+		exitCode = 4
 	}
+
+	w.Flush()
+	os.Exit(exitCode)
 }
 
 func writeCluster(w *tabwriter.Writer, cluster *rcs.Cluster, err error) {
@@ -115,8 +135,7 @@ func writeCluster(w *tabwriter.Writer, cluster *rcs.Cluster, err error) {
 }
 
 func simpleErr(w *tabwriter.Writer, err error) {
-	fmt.Fprintf(w, "ERROR: %v", err)
-	w.Flush()
+	fmt.Fprintf(w, "ERROR: %v\n", err)
 }
 
 func usage() {
