@@ -3,6 +3,8 @@ package rcs
 import (
 	"archive/zip"
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -272,13 +274,14 @@ type credentials struct {
 
 // Credentials holds the keys to the kingdom
 type Credentials struct {
-	README     string
-	Cert       string
-	Key        string
-	CA         string
-	CAKey      string
-	DockerEnv  string
+	README     []byte
+	Cert       []byte
+	Key        []byte
+	CA         []byte
+	CAKey      []byte
+	DockerEnv  []byte
 	DockerHost string
+	UUID       UUID
 }
 
 // UUID represents a UUID value. UUIDs can be compared and set to other values
@@ -365,14 +368,14 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	}
 
 	cleanCreds := Credentials{
-		Cert:      string(creds.Cert),
-		Key:       string(creds.Key),
-		CA:        string(creds.CA),
-		CAKey:     string(creds.CAKey),
-		DockerEnv: string(creds.DockerEnv),
+		Cert:      creds.Cert,
+		Key:       creds.Key,
+		CA:        creds.CA,
+		CAKey:     creds.CAKey,
+		DockerEnv: creds.DockerEnv,
 	}
 
-	sourceLines := strings.Split(cleanCreds.DockerEnv, "\n")
+	sourceLines := strings.Split(string(cleanCreds.DockerEnv), "\n")
 	for _, line := range sourceLines {
 		if strings.Index(line, "export ") == 0 {
 			varDecl := strings.TrimRight(line[7:], "\n")
@@ -390,6 +393,34 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	}
 
 	return &cleanCreds, nil
+}
+
+// GetDockerConfig returns the hostname and tls.Config for a given clustername
+func (c *ClusterClient) GetDockerConfig(clusterName string) (hostname string, tlsConfig *tls.Config, err error) {
+	creds, err := c.GetCredentials(clusterName)
+	if err != nil {
+		return "", nil, err
+	}
+	tlsConfig, err = creds.GetTLSConfig()
+	return creds.DockerHost, tlsConfig, err
+}
+
+// GetTLSConfig returns a tls.Config for a credential set
+func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
+	// TLS config
+	var tlsConfig tls.Config
+	tlsConfig.InsecureSkipVerify = true
+	certPool := x509.NewCertPool()
+
+	certPool.AppendCertsFromPEM(creds.CA)
+	tlsConfig.RootCAs = certPool
+	keypair, err := tls.X509KeyPair(creds.Cert, creds.Key)
+	if err != nil {
+		return &tlsConfig, err
+	}
+	tlsConfig.Certificates = []tls.Certificate{keypair}
+
+	return &tlsConfig, nil
 }
 
 func fetchZip(zipurl string) (*zip.Reader, error) {
