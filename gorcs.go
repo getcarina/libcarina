@@ -159,6 +159,7 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 		client:   client,
 		Username: username,
 		Token:    token,
+		Endpoint: endpoint,
 	}, nil
 }
 
