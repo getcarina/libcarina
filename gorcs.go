@@ -395,6 +395,16 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	return &cleanCreds, nil
 }
 
+// GetDockerConfig returns the hostname and tls.Config for a given clustername
+func (c *ClusterClient) GetDockerConfig(clusterName string) (hostname string, tlsConfig *tls.Config, err error) {
+	creds, err := c.GetCredentials(clusterName)
+	if err != nil {
+		return "", nil, err
+	}
+	tlsConfig, err = creds.GetTLSConfig()
+	return creds.DockerHost, tlsConfig, err
+}
+
 // GetTLSConfig returns a tls.Config for a credential set
 func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
 	// TLS config
