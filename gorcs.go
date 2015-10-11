@@ -1,16 +1,14 @@
-package main
+package rcs
 
 import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path"
 	"reflect"
 	"strconv"
@@ -273,6 +271,7 @@ type credentials struct {
 
 // Credentials holds the keys to the kingdom
 type Credentials struct {
+	README     string
 	Cert       string
 	Key        string
 	CA         string
@@ -311,7 +310,8 @@ func extractUUID(s string) (UUID, error) {
 	return u, err
 }
 
-func (c *ClusterClient) zippie(clusterName string) (*Credentials, error) {
+// GetCredentials returns a Credentials struct for the given cluster name
+func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error) {
 	url, err := c.ZipURL(clusterName)
 	if err != nil {
 		return nil, err
@@ -437,58 +437,4 @@ func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
 	uri := path.Join("/clusters", c.Username, clusterName)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
-}
-
-func main() {
-	username := os.Getenv("RACKSPACE_USERNAME")
-	password := os.Getenv("RACKSPACE_PASSWORD")
-
-	if username == "" || password == "" {
-		fmt.Println("Need the RACKSPACE_USERNAME and RACKSPACE_PASSWORD environment variables set.")
-		os.Exit(1)
-	}
-
-	endpoint := BetaEndpoint
-
-	clusterClient, err := NewClusterClient(endpoint, username, password)
-	if err != nil {
-		panic(err)
-	}
-
-	flag.Parse()
-
-	command := flag.Arg(0)
-	clusterName := flag.Arg(1)
-
-	var i interface{}
-
-	switch command {
-	case "list":
-		i, err = clusterClient.List()
-	case "get":
-		i, err = clusterClient.Get(clusterName)
-	case "delete":
-		i, err = clusterClient.Delete(clusterName)
-	case "zipurl":
-		i, err = clusterClient.ZipURL(clusterName)
-	case "create":
-		c := Cluster{
-			ClusterName: clusterName,
-		}
-		i, err = clusterClient.Create(c)
-	case "zippie":
-		creds, err := clusterClient.zippie(clusterName)
-		if err != nil {
-			break
-		}
-		i = creds
-
-	}
-
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(2)
-	}
-	fmt.Println(i)
-
 }
