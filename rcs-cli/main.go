@@ -4,7 +4,9 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 	"text/tabwriter"
 
@@ -24,6 +26,20 @@ func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
 	}
 	info, err := docker.Info()
 	return info, err
+}
+
+func writeCredentials(w *tabwriter.Writer, creds *rcs.Credentials, pth string) (err error) {
+	statusFormat := "%s\t%s\n"
+	for fname, b := range creds.Files {
+		p := path.Join(pth, fname)
+		err = ioutil.WriteFile(p, b, 0600)
+		if err != nil {
+			fmt.Fprintf(w, statusFormat, fname, "🚫")
+			return err
+		}
+		fmt.Fprintf(w, statusFormat, fname, "✅")
+	}
+	return nil
 }
 
 func main() {
@@ -87,17 +103,17 @@ func main() {
 	case "delete":
 		cluster, err := clusterClient.Delete(clusterName)
 		writeCluster(w, cluster, err)
-	case "zipurl":
-		zipurl, err := clusterClient.GetZipURL(clusterName)
-		if err != nil {
-			w.Write([]byte(zipurl))
-		}
 	case "create":
 		c := rcs.Cluster{
 			ClusterName: clusterName,
 		}
 		cluster, err := clusterClient.Create(c)
 		writeCluster(w, cluster, err)
+	case "credentials":
+		creds, err := clusterClient.GetCredentials(clusterName)
+		if err == nil {
+			err = writeCredentials(w, creds, ".")
+		}
 
 		// Snuck in as an example
 	case "docker-info":
@@ -140,27 +156,29 @@ func simpleErr(w *tabwriter.Writer, err error) {
 }
 
 func usage() {
-	fmt.Println("NAME:")
-	fmt.Println("  rcs-cli - command line interface to manage swarm clusters")
-	fmt.Println("USAGE:")
-	fmt.Println("  rcs-cli <command> [clustername] [-username <username>] [-password <password>] [-endpoint <endpoint>]")
+	exe := os.Args[0]
+
+	fmt.Printf("NAME:\n")
+	fmt.Printf("  %s - command line interface to manage swarm clusters\n", exe)
+	fmt.Printf("USAGE:\n")
+	fmt.Printf("  %s <command> [clustername] [-username <username>] [-password <password>] [-endpoint <endpoint>]\n", exe)
 	fmt.Println()
-	fmt.Println("COMMANDS:")
-	fmt.Println("  rcs-cli list")
-	fmt.Println("  rcs-cli create <clustername>")
-	fmt.Println("  rcs-cli get <clustername>")
-	fmt.Println("  rcs-cli delete <clustername>")
-	fmt.Println("  rcs-cli zipurl <clustername>")
+	fmt.Printf("COMMANDS:\n")
+	fmt.Printf("  %s list\n", exe)
+	fmt.Printf("  %s create <clustername>      - create a new cluster\n", exe)
+	fmt.Printf("  %s get <clustername>         - get a cluster by name\n", exe)
+	fmt.Printf("  %s delete <clustername>      - delete a cluster by name\n", exe)
+	fmt.Printf("  %s credentials <clustername> - download credentials to the current directory\n", exe)
 	fmt.Println()
-	fmt.Println("FLAGS:")
-	fmt.Println("  -endpoint string")
-	fmt.Println("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")")
-	fmt.Println("  -password string")
-	fmt.Println("    Rackspace password")
-	fmt.Println("  -username string")
-	fmt.Println("    Rackspace username")
+	fmt.Printf("FLAGS:\n")
+	fmt.Printf("  -endpoint string\n")
+	fmt.Printf("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")\n")
+	fmt.Printf("  -password string\n")
+	fmt.Printf("    Rackspace password\n")
+	fmt.Printf("  -username string\n")
+	fmt.Printf("    Rackspace username\n")
 	fmt.Println()
-	fmt.Println("ENVIRONMENT VARIABLES:")
-	fmt.Println("  RACKSPACE_USERNAME - set instead of -username")
-	fmt.Println("  RACKSPACE_PASSWORD - set instead of -password")
+	fmt.Printf("ENVIRONMENT VARIABLES:\n")
+	fmt.Printf("  RACKSPACE_USERNAME - set instead of -username\n")
+	fmt.Printf("  RACKSPACE_PASSWORD - set instead of -password\n")
 }

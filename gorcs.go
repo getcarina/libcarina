@@ -83,6 +83,7 @@ type Credentials struct {
 	CAKey      []byte
 	DockerEnv  []byte
 	DockerHost string
+	Files      map[string][]byte
 	UUID       UUID
 }
 
@@ -319,6 +320,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 
 	// fetch the contents for each credential/note
 	creds := new(Credentials)
+	creds.Files = make(map[string][]byte)
 	for _, zf := range zr.File {
 		// dir should be the UUID that comes out in the bundle
 		dir, fname := path.Split(zf.Name)
@@ -342,6 +344,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 		if err != nil {
 			return nil, err
 		}
+		creds.Files[fname] = b
 
 		switch fname {
 		case "ca.pem":
