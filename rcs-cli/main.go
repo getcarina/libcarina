@@ -102,7 +102,7 @@ func main() {
 		writeCluster(w, cluster, err)
 	case "zipurl":
 		zipurl, err := clusterClient.GetZipURL(clusterName)
-		if err != nil {
+		if err == nil {
 			w.Write([]byte(zipurl))
 		}
 	case "create":
@@ -113,7 +113,7 @@ func main() {
 		writeCluster(w, cluster, err)
 	case "credentials":
 		creds, err := clusterClient.GetCredentials(clusterName)
-		if err != nil {
+		if err == nil {
 			err = writeCredentials(creds, ".")
 		}
 
