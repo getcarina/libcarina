@@ -415,6 +415,7 @@ func fetchZip(zipurl string) (*zip.Reader, error) {
 
 	req.Header.Set("User-Agent", userAgent)
 
+	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
