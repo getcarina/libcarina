@@ -99,6 +99,7 @@ func main() {
 		cluster, err := clusterClient.Create(c)
 		writeCluster(w, cluster, err)
 
+		// Snuck in as an example
 	case "docker-info":
 		creds, err := clusterClient.GetCredentials(clusterName)
 		if err != nil {

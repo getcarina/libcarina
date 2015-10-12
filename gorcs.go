@@ -21,6 +21,7 @@ import (
 const BetaEndpoint = "https://mycluster.rackspacecloud.com"
 const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
+const userAgent = "rgbkrk/gorcs"
 
 // UserAuth setup
 type UserAuth struct {
@@ -71,6 +72,18 @@ type Cluster struct {
 	Status    string `json:"status,omitempty"`
 	TaskID    string `json:"task_id,omitempty"`
 	Token     string `json:"token,omitempty"`
+}
+
+// Credentials holds the keys to the kingdom
+type Credentials struct {
+	README     []byte
+	Cert       []byte
+	Key        []byte
+	CA         []byte
+	CAKey      []byte
+	DockerEnv  []byte
+	DockerHost string
+	UUID       UUID
 }
 
 // Specify this type for any struct fields that
@@ -133,6 +146,7 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Add("Content-Type", mimetypeJSON)
 
 	resp, err := client.Do(req)
@@ -171,6 +185,7 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 	if err != nil {
 		return nil, err
 	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Add("Content-Type", mimetypeJSON)
 	req.Header.Add(authHeaderKey, c.Token)
 	resp, err := c.client.Do(req)
@@ -261,29 +276,6 @@ func (c *ClusterClient) GetZipURL(clusterName string) (string, error) {
 	return zipURLResp.URL, nil
 }
 
-// temporary struct for dumping contents into
-type credentials struct {
-	README    []byte
-	Cert      []byte
-	Key       []byte
-	CA        []byte
-	CAKey     []byte
-	DockerEnv []byte
-	UUID      UUID
-}
-
-// Credentials holds the keys to the kingdom
-type Credentials struct {
-	README     []byte
-	Cert       []byte
-	Key        []byte
-	CA         []byte
-	CAKey      []byte
-	DockerEnv  []byte
-	DockerHost string
-	UUID       UUID
-}
-
 // UUID represents a UUID value. UUIDs can be compared and set to other values
 // and accessed by byte.
 type UUID [16]byte
@@ -326,7 +318,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	}
 
 	// fetch the contents for each credential/note
-	creds := new(credentials)
+	creds := new(Credentials)
 	for _, zf := range zr.File {
 		// dir should be the UUID that comes out in the bundle
 		dir, fname := path.Split(zf.Name)
@@ -367,15 +359,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 		}
 	}
 
-	cleanCreds := Credentials{
-		Cert:      creds.Cert,
-		Key:       creds.Key,
-		CA:        creds.CA,
-		CAKey:     creds.CAKey,
-		DockerEnv: creds.DockerEnv,
-	}
-
-	sourceLines := strings.Split(string(cleanCreds.DockerEnv), "\n")
+	sourceLines := strings.Split(string(creds.DockerEnv), "\n")
 	for _, line := range sourceLines {
 		if strings.Index(line, "export ") == 0 {
 			varDecl := strings.TrimRight(line[7:], "\n")
@@ -386,13 +370,13 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 
 			switch varName {
 			case "DOCKER_HOST":
-				cleanCreds.DockerHost = varValue
+				creds.DockerHost = varValue
 			}
 
 		}
 	}
 
-	return &cleanCreds, nil
+	return creds, nil
 }
 
 // GetDockerConfig returns the hostname and tls.Config for a given clustername
@@ -424,7 +408,15 @@ func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
 }
 
 func fetchZip(zipurl string) (*zip.Reader, error) {
-	resp, err := http.Get(zipurl)
+	req, err := http.NewRequest("GET", zipurl, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", userAgent)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
