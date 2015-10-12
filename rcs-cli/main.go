@@ -31,7 +31,7 @@ func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
 func writeCredentials(creds *rcs.Credentials, pth string) (err error) {
 	for fname, b := range creds.Files {
 		p := path.Join(pth, fname)
-		err = ioutil.WriteFile(p, b, 0644)
+		err = ioutil.WriteFile(p, b, 0600)
 		if err != nil {
 			return err
 		}
