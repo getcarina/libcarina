@@ -28,13 +28,16 @@ func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
 	return info, err
 }
 
-func writeCredentials(creds *rcs.Credentials, pth string) (err error) {
+func writeCredentials(w *tabwriter.Writer, creds *rcs.Credentials, pth string) (err error) {
+	statusFormat := "%s\t%s\n"
 	for fname, b := range creds.Files {
 		p := path.Join(pth, fname)
 		err = ioutil.WriteFile(p, b, 0600)
 		if err != nil {
+			fmt.Fprintf(w, statusFormat, fname, "🚫")
 			return err
 		}
+		fmt.Fprintf(w, statusFormat, fname, "✅")
 	}
 	return nil
 }
@@ -109,13 +112,7 @@ func main() {
 	case "credentials":
 		creds, err := clusterClient.GetCredentials(clusterName)
 		if err == nil {
-			err = writeCredentials(creds, ".")
-		}
-
-		if err != nil {
-			fmt.Fprintf(w, "Credentials written: ✅")
-		} else {
-			fmt.Fprintf(w, "Credentials written: 🚫")
+			err = writeCredentials(w, creds, ".")
 		}
 
 		// Snuck in as an example
