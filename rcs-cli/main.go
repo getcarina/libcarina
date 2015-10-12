@@ -109,6 +109,11 @@ func main() {
 		}
 		cluster, err := clusterClient.Create(c)
 		writeCluster(w, cluster, err)
+	case "credentials":
+		creds, err := clusterClient.GetCredentials(clusterName)
+		if err != nil {
+			err = writeCredentials(creds, ".")
+		}
 
 		// Snuck in as an example
 	case "docker-info":
