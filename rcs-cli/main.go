@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"strings"
 	"text/tabwriter"
 
@@ -27,9 +28,10 @@ func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
 	return info, err
 }
 
-func writeCredentials(creds *rcs.Credentials, path string) (err error) {
+func writeCredentials(creds *rcs.Credentials, pth string) (err error) {
 	for fname, b := range creds.Files {
-		err = ioutil.WriteFile(fname, b, 0644)
+		p := path.Join(pth, fname)
+		err = ioutil.WriteFile(p, b, 0644)
 		if err != nil {
 			return err
 		}
