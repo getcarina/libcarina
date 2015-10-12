@@ -24,3 +24,12 @@ _testmain.go
 *.prof
 
 rcs-cli/rcs-cli
+
+# Don't store any docker details
+ca-key.pem
+ca.pem
+cert.pem
+docker.env
+key.pem
+rcs
+
