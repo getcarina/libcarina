@@ -26,17 +26,6 @@ const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
 const userAgent = "rgbkrk/gorcs"
 
-// UserAuth setup
-type UserAuth struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// AuthResponse from user authentication
-type AuthResponse struct {
-	Token string `json:"token"`
-}
-
 // ZipURLResponse is the response that comes back from the zip endpoint
 type ZipURLResponse struct {
 	URL string `json:"zip_url"`
@@ -131,6 +120,20 @@ func (n *number) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClient, error) {
+	provider, err := rackspace.AuthenticatedClient(ao)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClusterClient{
+		client:   &http.Client{},
+		Username: ao.Username,
+		Token:    provider.TokenID,
+		Endpoint: endpoint,
+	}, nil
+}
+
 // NewClusterClientByAPIKey Auth using API Key
 func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient, error) {
 	ao := gophercloud.AuthOptions{
@@ -139,69 +142,18 @@ func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	provider, err := rackspace.AuthenticatedClient(ao)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ClusterClient{
-		client:   &http.Client{},
-		Username: username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
-	}, nil
+	return newClusterClient(endpoint, ao)
 }
 
 // NewClusterClient creates a new ClusterClient
 func NewClusterClient(endpoint, username, password string) (*ClusterClient, error) {
-	userAuth := UserAuth{
-		Username: username,
-		Password: password,
+	ao := gophercloud.AuthOptions{
+		Username:         username,
+		Password:         password,
+		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	client := &http.Client{}
-
-	b, err := json.Marshal(userAuth)
-	if err != nil {
-		return nil, err
-	}
-	data := bytes.NewBuffer(b)
-
-	req, err := http.NewRequest("POST", endpoint+"/auth", data)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Add("Content-Type", mimetypeJSON)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
-		}
-		return nil, errors.New(string(b))
-	}
-
-	var authResponse AuthResponse
-	err = json.NewDecoder(resp.Body).Decode(&authResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	token := authResponse.Token
-
-	return &ClusterClient{
-		client:   client,
-		Username: username,
-		Token:    token,
-		Endpoint: endpoint,
-	}, nil
+	return newClusterClient(endpoint, ao)
 }
 
 // NewRequest handles a request using auth used by RCS
