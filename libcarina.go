@@ -1,4 +1,4 @@
-package rcs
+package libcarina
 
 import (
 	"archive/zip"
@@ -24,14 +24,14 @@ import (
 const BetaEndpoint = "https://mycluster.rackspacecloud.com"
 const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
-const userAgent = "rgbkrk/gorcs"
+const userAgent = "rackerlabs/libcarina"
 
 // ZipURLResponse is the response that comes back from the zip endpoint
 type ZipURLResponse struct {
 	URL string `json:"zip_url"`
 }
 
-// ClusterClient accesses RCS
+// ClusterClient accesses Carina directly
 type ClusterClient struct {
 	client   *http.Client
 	Username string
@@ -39,7 +39,7 @@ type ClusterClient struct {
 	Endpoint string
 }
 
-// ErrorResponse is the JSON formatted error response from RCS
+// ErrorResponse is the JSON formatted error response from Carina
 type ErrorResponse struct {
 	Error string `json:"error"`
 }
@@ -145,7 +145,7 @@ func NewClusterClient(endpoint, username, apikey string) (*ClusterClient, error)
 	return newClusterClient(endpoint, ao)
 }
 
-// NewRequest handles a request using auth used by RCS
+// NewRequest handles a request using auth used by Carina
 func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, c.Endpoint+uri, body)
 	if err != nil {

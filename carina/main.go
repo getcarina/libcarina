@@ -10,11 +10,11 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	rcs "github.com/rgbkrk/gorcs"
+	carina "github.com/rackerlabs/libcarina"
 	"github.com/samalba/dockerclient"
 )
 
-func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
+func dockerInfo(creds *carina.Credentials) (*dockerclient.Info, error) {
 	tlsConfig, err := creds.GetTLSConfig()
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func dockerInfo(creds *rcs.Credentials) (*dockerclient.Info, error) {
 	return info, err
 }
 
-func writeCredentials(w *tabwriter.Writer, creds *rcs.Credentials, pth string) (err error) {
+func writeCredentials(w *tabwriter.Writer, creds *carina.Credentials, pth string) (err error) {
 	statusFormat := "%s\t%s\n"
 	for fname, b := range creds.Files {
 		p := path.Join(pth, fname)
@@ -49,7 +49,7 @@ func main() {
 
 	flag.StringVar(&username, "username", "", "Rackspace username")
 	flag.StringVar(&apiKey, "api-key", "", "Rackspace API Key")
-	flag.StringVar(&endpoint, "endpoint", rcs.BetaEndpoint, "RCS API Endpoint")
+	flag.StringVar(&endpoint, "endpoint", carina.BetaEndpoint, "carina API Endpoint")
 	flag.Parse()
 
 	if username == "" && os.Getenv("RACKSPACE_USERNAME") != "" {
@@ -81,7 +81,7 @@ func main() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
 
-	clusterClient, err := rcs.NewClusterClientByAPIKey(endpoint, username, apiKey)
+	clusterClient, err := carina.NewClusterClient(endpoint, username, apiKey)
 	if err != nil {
 		simpleErr(w, err)
 		w.Flush()
@@ -90,7 +90,7 @@ func main() {
 
 	switch command {
 	case "list":
-		var clusters []rcs.Cluster
+		var clusters []carina.Cluster
 		clusters, err = clusterClient.List()
 		if err == nil {
 			for _, cluster := range clusters {
@@ -104,7 +104,7 @@ func main() {
 		cluster, err := clusterClient.Delete(clusterName)
 		writeCluster(w, cluster, err)
 	case "create":
-		c := rcs.Cluster{
+		c := carina.Cluster{
 			ClusterName: clusterName,
 		}
 		cluster, err := clusterClient.Create(c)
@@ -138,7 +138,7 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func writeCluster(w *tabwriter.Writer, cluster *rcs.Cluster, err error) {
+func writeCluster(w *tabwriter.Writer, cluster *carina.Cluster, err error) {
 	if err != nil {
 		return
 	}
@@ -176,7 +176,7 @@ func usage() {
 	fmt.Printf("  -api-key string\n")
 	fmt.Printf("    Rackspace API key\n")
 	fmt.Printf("  -endpoint string\n")
-	fmt.Printf("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")\n")
+	fmt.Printf("    carina API Endpoint (default \"https://mycluster.rackspacecloud.com\")\n")
 	fmt.Println()
 	fmt.Printf("ENVIRONMENT VARIABLES:\n")
 	fmt.Printf("  RACKSPACE_USERNAME - set instead of -username\n")
