@@ -134,22 +134,11 @@ func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClie
 	}, nil
 }
 
-// NewClusterClientByAPIKey Auth using API Key
-func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient, error) {
+// NewClusterClient create a new clusterclient by API Key
+func NewClusterClient(endpoint, username, apikey string) (*ClusterClient, error) {
 	ao := gophercloud.AuthOptions{
 		Username:         username,
 		APIKey:           apikey,
-		IdentityEndpoint: rackspace.RackspaceUSIdentity,
-	}
-
-	return newClusterClient(endpoint, ao)
-}
-
-// NewClusterClient creates a new ClusterClient
-func NewClusterClient(endpoint, username, password string) (*ClusterClient, error) {
-	ao := gophercloud.AuthOptions{
-		Username:         username,
-		Password:         password,
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
