@@ -154,52 +154,21 @@ func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient
 
 // NewClusterClient creates a new ClusterClient
 func NewClusterClient(endpoint, username, password string) (*ClusterClient, error) {
-	userAuth := UserAuth{
-		Username: username,
-		Password: password,
+	ao := gophercloud.AuthOptions{
+		Username:         username,
+		Password:         password,
+		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	client := &http.Client{}
-
-	b, err := json.Marshal(userAuth)
+	provider, err := rackspace.AuthenticatedClient(ao)
 	if err != nil {
 		return nil, err
 	}
-	data := bytes.NewBuffer(b)
-
-	req, err := http.NewRequest("POST", endpoint+"/auth", data)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Add("Content-Type", mimetypeJSON)
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
-		}
-		return nil, errors.New(string(b))
-	}
-
-	var authResponse AuthResponse
-	err = json.NewDecoder(resp.Body).Decode(&authResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	token := authResponse.Token
 
 	return &ClusterClient{
-		client:   client,
+		client:   &http.Client{},
 		Username: username,
-		Token:    token,
+		Token:    provider.TokenID,
 		Endpoint: endpoint,
 	}, nil
 }
