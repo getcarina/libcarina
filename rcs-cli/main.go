@@ -43,25 +43,25 @@ func writeCredentials(w *tabwriter.Writer, creds *rcs.Credentials, pth string) (
 }
 
 func main() {
-	var username, password, endpoint string
+	var username, apiKey, endpoint string
 
 	flag.Usage = usage
 
 	flag.StringVar(&username, "username", "", "Rackspace username")
-	flag.StringVar(&password, "password", "", "Rackspace password")
+	flag.StringVar(&apiKey, "api-key", "", "Rackspace API Key")
 	flag.StringVar(&endpoint, "endpoint", rcs.BetaEndpoint, "RCS API Endpoint")
 	flag.Parse()
 
 	if username == "" && os.Getenv("RACKSPACE_USERNAME") != "" {
 		username = os.Getenv("RACKSPACE_USERNAME")
 	}
-	if password == "" && os.Getenv("RACKSPACE_PASSWORD") != "" {
-		password = os.Getenv("RACKSPACE_PASSWORD")
+	if apiKey == "" && os.Getenv("RACKSPACE_APIKEY") != "" {
+		apiKey = os.Getenv("RACKSPACE_APIKEY")
 	}
 
-	if username == "" || password == "" {
-		fmt.Println("Either set --username and --password or set the " +
-			"RACKSPACE_USERNAME and RACKSPACE_PASSWORD environment variables.")
+	if username == "" || apiKey == "" {
+		fmt.Println("Either set -username and -api-key or set the " +
+			"RACKSPACE_USERNAME and RACKSPACE_APIKEY environment variables.")
 		fmt.Println()
 		usage()
 		os.Exit(1)
@@ -81,7 +81,7 @@ func main() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
 
-	clusterClient, err := rcs.NewClusterClient(endpoint, username, password)
+	clusterClient, err := rcs.NewClusterClientByAPIKey(endpoint, username, apiKey)
 	if err != nil {
 		simpleErr(w, err)
 		w.Flush()
@@ -161,7 +161,7 @@ func usage() {
 	fmt.Printf("NAME:\n")
 	fmt.Printf("  %s - command line interface to manage swarm clusters\n", exe)
 	fmt.Printf("USAGE:\n")
-	fmt.Printf("  %s <command> [clustername] [-username <username>] [-password <password>] [-endpoint <endpoint>]\n", exe)
+	fmt.Printf("  %s <command> [clustername] [-username <username>] [-api-key <apiKey>] [-endpoint <endpoint>]\n", exe)
 	fmt.Println()
 	fmt.Printf("COMMANDS:\n")
 	fmt.Printf("  %s list\n", exe)
@@ -171,14 +171,14 @@ func usage() {
 	fmt.Printf("  %s credentials <clustername> - download credentials to the current directory\n", exe)
 	fmt.Println()
 	fmt.Printf("FLAGS:\n")
-	fmt.Printf("  -endpoint string\n")
-	fmt.Printf("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")\n")
-	fmt.Printf("  -password string\n")
-	fmt.Printf("    Rackspace password\n")
 	fmt.Printf("  -username string\n")
 	fmt.Printf("    Rackspace username\n")
+	fmt.Printf("  -api-key string\n")
+	fmt.Printf("    Rackspace API key\n")
+	fmt.Printf("  -endpoint string\n")
+	fmt.Printf("    RCS API Endpoint (default \"https://mycluster.rackspacecloud.com\")\n")
 	fmt.Println()
 	fmt.Printf("ENVIRONMENT VARIABLES:\n")
 	fmt.Printf("  RACKSPACE_USERNAME - set instead of -username\n")
-	fmt.Printf("  RACKSPACE_PASSWORD - set instead of -password\n")
+	fmt.Printf("  RACKSPACE_APIKEY   - set instead of -api-key\n")
 }

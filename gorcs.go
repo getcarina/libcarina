@@ -15,6 +15,9 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/rackspace/gophercloud"
+	"github.com/rackspace/gophercloud/rackspace"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -126,6 +129,27 @@ func (n *number) UnmarshalJSON(data []byte) error {
 	}
 	*n = number(f)
 	return nil
+}
+
+// NewClusterClientByAPIKey Auth using API Key
+func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient, error) {
+	ao := gophercloud.AuthOptions{
+		Username:         username,
+		APIKey:           apikey,
+		IdentityEndpoint: rackspace.RackspaceUSIdentity,
+	}
+
+	provider, err := rackspace.AuthenticatedClient(ao)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClusterClient{
+		client:   &http.Client{},
+		Username: username,
+		Token:    provider.TokenID,
+		Endpoint: endpoint,
+	}, nil
 }
 
 // NewClusterClient creates a new ClusterClient
