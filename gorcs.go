@@ -26,17 +26,6 @@ const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
 const userAgent = "rgbkrk/gorcs"
 
-// UserAuth setup
-type UserAuth struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-// AuthResponse from user authentication
-type AuthResponse struct {
-	Token string `json:"token"`
-}
-
 // ZipURLResponse is the response that comes back from the zip endpoint
 type ZipURLResponse struct {
 	URL string `json:"zip_url"`
@@ -131,6 +120,20 @@ func (n *number) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClient, error) {
+	provider, err := rackspace.AuthenticatedClient(ao)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ClusterClient{
+		client:   &http.Client{},
+		Username: ao.Username,
+		Token:    provider.TokenID,
+		Endpoint: endpoint,
+	}, nil
+}
+
 // NewClusterClientByAPIKey Auth using API Key
 func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient, error) {
 	ao := gophercloud.AuthOptions{
@@ -139,17 +142,7 @@ func NewClusterClientByAPIKey(endpoint, username, apikey string) (*ClusterClient
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	provider, err := rackspace.AuthenticatedClient(ao)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ClusterClient{
-		client:   &http.Client{},
-		Username: username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
-	}, nil
+	return newClusterClient(endpoint, ao)
 }
 
 // NewClusterClient creates a new ClusterClient
@@ -160,17 +153,7 @@ func NewClusterClient(endpoint, username, password string) (*ClusterClient, erro
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	provider, err := rackspace.AuthenticatedClient(ao)
-	if err != nil {
-		return nil, err
-	}
-
-	return &ClusterClient{
-		client:   &http.Client{},
-		Username: username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
-	}, nil
+	return newClusterClient(endpoint, ao)
 }
 
 // NewRequest handles a request using auth used by RCS
