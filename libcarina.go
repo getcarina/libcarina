@@ -58,7 +58,7 @@ type Cluster struct {
 	// Node is optional, but allowed on create
 	// Sadly it comes back as string instead of int in all cases
 	// with the API
-	Nodes number `json:"nodes,omitempty"`
+	Nodes Number `json:"nodes,omitempty"`
 
 	AutoScale bool   `json:"autoscale,omitempty"`
 	Status    string `json:"status,omitempty"`
@@ -79,25 +79,28 @@ type Credentials struct {
 	UUID       UUID
 }
 
-// Specify this type for any struct fields that
+// Number - specify this type for any struct fields that
 // might be unmarshaled from JSON numbers of the following
 // types: floats, integers, scientific notation, or strings
-type number float64
+type Number float64
 
-func (n number) Int64() int64 {
+// Int64 return the Int64 version of this
+func (n Number) Int64() int64 {
 	return int64(n)
 }
 
-func (n number) Int() int {
+// Int return the Int version of this
+func (n Number) Int() int {
 	return int(n)
 }
 
-func (n number) Float64() float64 {
+// Float64 return the Float64 version of this
+func (n Number) Float64() float64 {
 	return float64(n)
 }
 
-// Required to enforce that string values are attempted to be parsed as numbers
-func (n *number) UnmarshalJSON(data []byte) error {
+// UnmarshalJSON required to enforce that string values are attempted to be parsed as numbers
+func (n *Number) UnmarshalJSON(data []byte) error {
 	var f float64
 	var err error
 	if data[0] == '"' {
@@ -116,7 +119,7 @@ func (n *number) UnmarshalJSON(data []byte) error {
 			}
 		}
 	}
-	*n = number(f)
+	*n = Number(f)
 	return nil
 }
 
