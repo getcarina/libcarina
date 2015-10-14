@@ -411,8 +411,10 @@ func fetchZip(zipurl string) (*zip.Reader, error) {
 
 // Grow increases a cluster by the provided number of nodes
 func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
-	incr := make(map[string]json.Number)
-	incr["nodes"] = json.Number(nodes)
+	incr := map[string]int{
+		"nodes": nodes,
+	}
+
 	growthRequest, err := json.Marshal(incr)
 	if err != nil {
 		return nil, err
