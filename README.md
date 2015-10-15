@@ -1,15 +1,16 @@
 # libcarina
 
-Go bindings for the beta release of the [Rackspace Container Service](https://mycluster.rackspacecloud.com), Carina.
+[![GoDoc](https://godoc.org/github.com/rackerlabs/libcarina?status.png)](https://godoc.org/github.com/rackerlabs/libcarina)
+
+Go bindings for the beta release of the [Rackspace Container Service](https://mycluster.rackspacecloud.com), Carina. If you're looking for a client binding, [`carina`](https://github.com/rackerlabs/carina) is your friend up until we integrate it into [`rack`](https://github.com/rackspace/rack)
 
 ![](https://cloud.githubusercontent.com/assets/836375/10503963/e5bcca8c-72c0-11e5-8e14-2c1697297d7e.png)
 
-* [Docs](https://godoc.org/github.com/rackerlabs/libcarina)
-* [Carina CLI](https://github.com/rackerlabs/carina) - relies on libcarina
+## Examples
 
-## Example of getting straight to Docker from username, API key pair
+Getting straight to Docker with only your username and API Key:
 
-```golang
+```go
 package main
 
 import (
