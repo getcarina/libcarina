@@ -74,6 +74,8 @@ type Credentials struct {
 	CA         []byte
 	CAKey      []byte
 	DockerEnv  []byte
+	DockerCmd  []byte
+	DockerPS1  []byte
 	DockerHost string
 	Files      map[string][]byte
 	UUID       UUID
@@ -327,7 +329,12 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 			creds.Cert = b
 		case "key.pem":
 			creds.Key = b
+		case "docker.ps1":
+			creds.DockerPS1 = b
+		case "docker.cmd":
+			creds.DockerCmd = b
 		}
+
 	}
 
 	sourceLines := strings.Split(string(creds.DockerEnv), "\n")
