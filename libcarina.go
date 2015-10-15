@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -78,7 +77,6 @@ type Credentials struct {
 	DockerPS1  []byte
 	DockerHost string
 	Files      map[string][]byte
-	UUID       UUID
 }
 
 // Number - specify this type for any struct fields that
@@ -247,36 +245,6 @@ func (c *ClusterClient) GetZipURL(clusterName string) (string, error) {
 	return zipURLResp.URL, nil
 }
 
-// UUID represents a UUID value. UUIDs can be compared and set to other values
-// and accessed by byte.
-type UUID [16]byte
-
-func extractUUID(s string) (UUID, error) {
-	s = strings.Trim(s, "/")
-	var u UUID
-	var err error
-
-	if len(s) != 36 {
-		return UUID{}, fmt.Errorf("Invalid UUID")
-	}
-	format := "%08x-%04x-%04x-%04x-%012x"
-
-	// create stack addresses for each section of the uuid.
-	p := make([][]byte, 5)
-
-	if _, err := fmt.Sscanf(s, format, &p[0], &p[1], &p[2], &p[3], &p[4]); err != nil {
-		return u, err
-	}
-
-	copy(u[0:4], p[0])
-	copy(u[4:6], p[1])
-	copy(u[6:8], p[2])
-	copy(u[8:10], p[3])
-	copy(u[10:16], p[4])
-
-	return u, err
-}
-
 // GetCredentials returns a Credentials struct for the given cluster name
 func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error) {
 	url, err := c.GetZipURL(clusterName)
@@ -292,16 +260,11 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	creds := new(Credentials)
 	creds.Files = make(map[string][]byte)
 	for _, zf := range zr.File {
-		// dir should be the UUID that comes out in the bundle
-		dir, fname := path.Split(zf.Name)
+		_, fname := path.Split(zf.Name)
 		fi := zf.FileInfo()
 
 		if fi.IsDir() {
-			// get uuid that's part of the zip dump
-			creds.UUID, err = extractUUID(dir)
-			if err != nil {
-				return nil, errors.New("Unable to read UUID from directory name in zip file: " + err.Error())
-			}
+			// Explicitly skip past directories (the UUID directory from a previous release)
 			continue
 		}
 
