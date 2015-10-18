@@ -399,6 +399,28 @@ func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
 	return clusterFromResponse(resp, err)
 }
 
+const rebuildSwarmAction = "rebuild-swarm"
+
+type actionRequest struct {
+	Action string `json:"action"`
+}
+
+func (c *ClusterClient) doAction(clusterName, action string) (*Cluster, error) {
+	actionReq, err := json.Marshal(actionRequest{Action: action})
+	if err != nil {
+		return nil, err
+	}
+	r := bytes.NewReader(actionReq)
+	uri := path.Join("/clusters", c.Username, clusterName, "action")
+	resp, err := c.NewRequest("POST", uri, r)
+	return clusterFromResponse(resp, err)
+}
+
+// Rebuild creates a wholly new Swarm cluster
+func (c *ClusterClient) Rebuild(clusterName string) (*Cluster, error) {
+	return c.doAction(clusterName, rebuildSwarmAction)
+}
+
 // Delete nukes a cluster out of existence
 func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
 	uri := path.Join("/clusters", c.Username, clusterName)
