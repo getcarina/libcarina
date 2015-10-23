@@ -2,7 +2,7 @@
 
 [![GoDoc](https://godoc.org/github.com/rackerlabs/libcarina?status.png)](https://godoc.org/github.com/rackerlabs/libcarina)
 
-Go bindings for the beta release of the [Rackspace Container Service](https://mycluster.rackspacecloud.com), Carina. If you're looking for a client binding, [`carina`](https://github.com/rackerlabs/carina) is your friend up until we integrate it into [`rack`](https://github.com/rackspace/rack)
+Provisional Go bindings for the beta release of [Carina](https://getcarina.com) by Rackspace. If you're looking for a client binding, [`carina`](https://github.com/rackerlabs/carina) is your friend.
 
 ![](https://cloud.githubusercontent.com/assets/836375/10503963/e5bcca8c-72c0-11e5-8e14-2c1697297d7e.png)
 
@@ -18,7 +18,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/rackerlabs/libcarina"
+	"github.com/getcarina/libcarina"
 	"github.com/samalba/dockerclient"
 )
 
