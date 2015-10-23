@@ -20,7 +20,7 @@ import (
 )
 
 // BetaEndpoint reflects the default endpoint for this library
-const BetaEndpoint = "https://mycluster.rackspacecloud.com"
+const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
 const userAgent = "rackerlabs/libcarina"
