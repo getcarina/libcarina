@@ -156,6 +156,7 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Add("Content-Type", mimetypeJSON)
+	req.Header.Add("Accept", mimetypeJSON)
 	req.Header.Add(authHeaderKey, c.Token)
 	resp, err := c.client.Do(req)
 	if err != nil {
