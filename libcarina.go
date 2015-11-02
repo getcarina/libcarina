@@ -32,7 +32,7 @@ type ZipURLResponse struct {
 
 // ClusterClient accesses Carina directly
 type ClusterClient struct {
-	client   *http.Client
+	Client   *http.Client
 	Username string
 	Token    string
 	Endpoint string
@@ -130,7 +130,7 @@ func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClie
 	}
 
 	return &ClusterClient{
-		client:   &http.Client{},
+		Client:   &http.Client{},
 		Username: ao.Username,
 		Token:    provider.TokenID,
 		Endpoint: endpoint,
@@ -158,7 +158,7 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 	req.Header.Add("Content-Type", mimetypeJSON)
 	req.Header.Add("Accept", mimetypeJSON)
 	req.Header.Add(authHeaderKey, c.Token)
-	resp, err := c.client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
