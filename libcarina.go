@@ -23,7 +23,7 @@ import (
 const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
-const userAgent = "rackerlabs/libcarina"
+const userAgent = "getcarina/libcarina"
 
 // ZipURLResponse is the response that comes back from the zip endpoint
 type ZipURLResponse struct {
