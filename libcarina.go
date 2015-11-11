@@ -164,6 +164,9 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 	}
 
 	if resp.StatusCode >= 400 {
+		if resp.Body == nil {
+			return nil, errors.New(resp.Status)
+		}
 		b, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, errors.New(resp.Status)
