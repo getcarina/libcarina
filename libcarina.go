@@ -403,8 +403,8 @@ func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
 	return clusterFromResponse(resp, err)
 }
 
-// SetAutoscale enables or disables autoscale on an already running cluster
-func (c *ClusterClient) SetAutoscale(clusterName string, autoscale bool) (*Cluster, error) {
+// SetAutoScale enables or disables autoscale on an already running cluster
+func (c *ClusterClient) SetAutoScale(clusterName string, autoscale bool) (*Cluster, error) {
 	setAutoscale := "false"
 	if autoscale {
 		setAutoscale = "true"
