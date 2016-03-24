@@ -79,6 +79,11 @@ type Credentials struct {
 	Files      map[string][]byte
 }
 
+type Quotas struct {
+	MaxClusters        Number `json:"max_clusters"`
+	MaxNodesPerCluster Number `json:"max_nodes_per_cluster"`
+}
+
 // Number - specify this type for any struct fields that
 // might be unmarshaled from JSON numbers of the following
 // types: floats, integers, scientific notation, or strings
@@ -441,4 +446,22 @@ func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
 	uri := path.Join("/clusters", c.Username, clusterName)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
+}
+
+func quotasFromResponse(resp *http.Response) (*Quotas, error) {
+	quotas := new(Quotas)
+	err := json.NewDecoder(resp.Body).Decode(&quotas)
+	if err != nil {
+		return nil, err
+	}
+	return quotas, nil
+}
+
+func (c *ClusterClient) GetQuotas() (*Quotas, error) {
+	uri := path.Join("/quotas", c.Username)
+	resp, err := c.NewRequest("GET", uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	return quotasFromResponse(resp)
 }
