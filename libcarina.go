@@ -77,6 +77,7 @@ type Credentials struct {
 	DockerPS1  []byte
 	DockerHost string
 	Files      map[string][]byte
+	DockerFish []byte
 }
 
 type Quotas struct {
@@ -305,6 +306,8 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 			creds.DockerPS1 = b
 		case "docker.cmd":
 			creds.DockerCmd = b
+		case "docker.fish":
+			creds.DockerFish = b
 		}
 
 	}
