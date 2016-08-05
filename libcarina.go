@@ -135,18 +135,19 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 
 // List the current clusters
 func (c *ClusterClient) List() ([]Cluster, error) {
-	clusters := []Cluster{}
-
-	resp, err := c.NewRequest("GET", "/clusters/"+c.Username, nil)
+	resp, err := c.NewRequest("GET", "/bays", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&clusters)
+	var result struct {
+		Clusters []Cluster `json:"bays"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, err
 	}
-	return clusters, nil
+	return result.Clusters, nil
 }
 
 func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
