@@ -43,26 +43,22 @@ type ErrorResponse struct {
 	Error string `json:"error"`
 }
 
-// Cluster is a cluster
+// Cluster is a cluster of Docker nodes
 type Cluster struct {
-	ClusterName string `json:"cluster_name"`
-	Username    string `json:"username"`
+	// ID of the cluster
+	ID string `json:"id"`
 
-	// Flavor of compute to use for cluster, should be a default value currently
-	Flavor string `json:"flavor,omitempty"`
+	// Name of the cluster
+	Name string `json:"name"`
 
-	// UUID of image to use for cluster, should be a default value currently
-	Image string `json:"image,omitempty"`
+	// COE (container orchestration engine) used by the cluster
+	COE string `json:"coe"`
 
-	// Node is optional, but allowed on create
-	// Sadly it comes back as string instead of int in all cases
-	// with the API
-	Nodes Number `json:"nodes,omitempty"`
+	// Nodes in the cluster
+	Nodes int `json:"node_count,omitempty"`
 
-	AutoScale bool   `json:"autoscale,omitempty"`
+	// Status of the cluster
 	Status    string `json:"status,omitempty"`
-	TaskID    string `json:"task_id,omitempty"`
-	Token     string `json:"token,omitempty"`
 }
 
 // Credentials holds the keys to the kingdom
@@ -220,11 +216,6 @@ func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
 
 // Create a new cluster with cluster options
 func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
-	// Even though username is in the URI path, the API expects the username
-	// inside the body
-	if clusterOpts.Username == "" {
-		clusterOpts.Username = c.Username
-	}
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
 		return nil, err
