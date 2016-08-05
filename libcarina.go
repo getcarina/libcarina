@@ -163,8 +163,8 @@ func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 }
 
 // Get a cluster by cluster name
-func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
-	uri := path.Join("/clusters", c.Username, clusterName)
+func (c *ClusterClient) Get(clusterID string) (*Cluster, error) {
+	uri := path.Join("/bays", clusterID)
 	resp, err := c.NewRequest("GET", uri, nil)
 	return clusterFromResponse(resp, err)
 }
