@@ -11,8 +11,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
-	"reflect"
-	"strconv"
 	"strings"
 
 	"github.com/rackspace/gophercloud"
@@ -77,52 +75,8 @@ type Credentials struct {
 }
 
 type Quotas struct {
-	MaxClusters        Number `json:"max_clusters"`
-	MaxNodesPerCluster Number `json:"max_nodes_per_cluster"`
-}
-
-// Number - specify this type for any struct fields that
-// might be unmarshaled from JSON numbers of the following
-// types: floats, integers, scientific notation, or strings
-type Number float64
-
-// Int64 return the Int64 version of this
-func (n Number) Int64() int64 {
-	return int64(n)
-}
-
-// Int return the Int version of this
-func (n Number) Int() int {
-	return int(n)
-}
-
-// Float64 return the Float64 version of this
-func (n Number) Float64() float64 {
-	return float64(n)
-}
-
-// UnmarshalJSON required to enforce that string values are attempted to be parsed as numbers
-func (n *Number) UnmarshalJSON(data []byte) error {
-	var f float64
-	var err error
-	if data[0] == '"' {
-		f, err = strconv.ParseFloat(string(data[1:len(data)-1]), 64)
-		if err != nil {
-			return &json.UnmarshalTypeError{
-				Value: string(data),
-				Type:  reflect.TypeOf(*n),
-			}
-		}
-	} else {
-		if err := json.Unmarshal(data, &f); err != nil {
-			return &json.UnmarshalTypeError{
-				Value: string(data),
-				Type:  reflect.TypeOf(*n),
-			}
-		}
-	}
-	*n = Number(f)
-	return nil
+	MaxClusters        int `json:"max_clusters"`
+	MaxNodesPerCluster int `json:"max_nodes_per_cluster"`
 }
 
 func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClient, error) {
