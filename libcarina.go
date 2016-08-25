@@ -207,7 +207,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	if err != nil {
 		return nil, err
 	}
-	zr, err := fetchZip(url)
+	zr, err := fetchZip(c.Client, url)
 	if err != nil || len(zr.File) < 6 {
 		return nil, err
 	}
@@ -306,7 +306,7 @@ func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
 	return &tlsConfig, nil
 }
 
-func fetchZip(zipurl string) (*zip.Reader, error) {
+func fetchZip(client *http.Client, zipurl string) (*zip.Reader, error) {
 	req, err := http.NewRequest("GET", zipurl, nil)
 	if err != nil {
 		return nil, err
@@ -314,7 +314,6 @@ func fetchZip(zipurl string) (*zip.Reader, error) {
 
 	req.Header.Set("User-Agent", userAgent)
 
-	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
