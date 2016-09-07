@@ -180,8 +180,7 @@ func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
 	}
 
 	body := bytes.NewReader(clusterOptsJSON)
-	uri := path.Join("/clusters", c.Username)
-	resp, err := c.NewRequest("POST", uri, body)
+	resp, err := c.NewRequest("POST", "/clusters", body)
 	return clusterFromResponse(resp, err)
 }
 
