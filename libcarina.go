@@ -69,7 +69,7 @@ type Cluster struct {
 	Nodes int `json:"node_count,omitempty"`
 
 	// Status of the cluster
-	Status    string `json:"status,omitempty"`
+	Status string `json:"status,omitempty"`
 }
 
 // Credentials holds the keys to the kingdom
@@ -194,13 +194,24 @@ func (c *ClusterClient) lookupClusterID(token string) (string, error) {
 		return "", err
 	}
 
+	var id string
 	for _, cluster := range clusters {
 		if strings.ToLower(cluster.Name) == strings.ToLower(token) {
-			return cluster.ID, nil
+			if id != "" {
+				return "", fmt.Errorf("The cluster (%s) is not unique. Retry the request using the cluster id", token)
+			}
+			id = cluster.ID
 		}
 	}
 
-	return "", fmt.Errorf("Could not find cluster named: %s", token)
+	if id == "" {
+		return "", HTTPErr{
+			StatusCode: http.StatusNotFound,
+			Status:     "404 NOT FOUND",
+			Body:       `{"message": "Cluster "` + token + ` not found"}`}
+	}
+
+	return id, nil
 }
 
 // Get a cluster by cluster by its name or id
