@@ -138,13 +138,13 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 
 // List the current clusters
 func (c *ClusterClient) List() ([]Cluster, error) {
-	resp, err := c.NewRequest("GET", "/bays", nil)
+	resp, err := c.NewRequest("GET", "/clusters", nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var result struct {
-		Clusters []Cluster `json:"bays"`
+		Clusters []Cluster `json:"clusters"`
 	}
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
