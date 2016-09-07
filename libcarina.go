@@ -15,6 +15,8 @@ import (
 
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/rackspace"
+	"regexp"
+	"fmt"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -165,9 +167,38 @@ func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 	return cluster, nil
 }
 
-// Get a cluster by cluster name
-func (c *ClusterClient) Get(clusterID string) (*Cluster, error) {
-	uri := path.Join("/bays", clusterID)
+func isClusterID(token string) bool {
+	r := regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[8|9|aA|bB][a-f0-9]{3}-[a-f0-9]{12}$")
+	return r.MatchString(token)
+}
+
+func (c *ClusterClient) lookupClusterID(token string) (string, error) {
+	if isClusterID(token) {
+		return token, nil
+	}
+
+	clusters, err := c.List()
+	if err != nil {
+		return "", err
+	}
+
+	for _, cluster := range clusters {
+		if strings.ToLower(cluster.Name) == strings.ToLower(token) {
+			return cluster.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("Could not find cluster named: %s", token)
+}
+
+// Get a cluster by cluster by its name or id
+func (c *ClusterClient) Get(token string) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("GET", uri, nil)
 	return clusterFromResponse(resp, err)
 }
