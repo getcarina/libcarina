@@ -13,10 +13,10 @@ import (
 	"path"
 	"strings"
 
+	"fmt"
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/rackspace"
 	"regexp"
-	"fmt"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -38,9 +38,17 @@ type ClusterClient struct {
 	Endpoint string
 }
 
-// ErrorResponse is the JSON formatted error response from Carina
-type ErrorResponse struct {
-	Error string `json:"error"`
+// HTTPErr is returned when API requests are not successful
+type HTTPErr struct {
+	Method     string
+	URL        string
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (err HTTPErr) Error() string {
+	return fmt.Sprintf("%s %s (%d-%s)", err.Method, err.URL, err.StatusCode, err.Status)
 }
 
 // Cluster is a cluster of Docker nodes
@@ -125,15 +133,18 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 		return nil, err
 	}
 
-	if resp.StatusCode >= 400 {
+	if resp.StatusCode >= 300 {
+		err := HTTPErr{
+			Method:     method,
+			URL:        uri,
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+		}
 		if resp.Body == nil {
-			return nil, errors.New(resp.Status)
+			body, _ := ioutil.ReadAll(resp.Body)
+			err.Body = string(body)
 		}
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
-		}
-		return nil, errors.New(string(b))
+		return nil, err
 	}
 
 	return resp, nil
