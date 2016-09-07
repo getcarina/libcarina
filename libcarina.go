@@ -52,6 +52,9 @@ type Cluster struct {
 	// COE (container orchestration engine) used by the cluster
 	COE string `json:"coe"`
 
+	// Underlying type of the host nodes, such as lxc or vm
+	HostType string `json:"host_type"`
+
 	// Nodes in the cluster
 	Nodes int `json:"node_count,omitempty"`
 
