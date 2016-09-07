@@ -435,8 +435,13 @@ func (c *ClusterClient) Rebuild(clusterName string) (*Cluster, error) {
 }
 
 // Delete nukes a cluster out of existence
-func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
-	uri := path.Join("/clusters", c.Username, clusterName)
+func (c *ClusterClient) Delete(token string) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
 }
