@@ -79,6 +79,7 @@ type Credentials struct {
 	DockerFish []byte
 }
 
+// Quotas is the set of account quotas
 type Quotas struct {
 	MaxClusters        int `json:"max_clusters"`
 	MaxNodesPerCluster int `json:"max_nodes_per_cluster"`
@@ -438,6 +439,7 @@ func quotasFromResponse(resp *http.Response) (*Quotas, error) {
 	return quotas, nil
 }
 
+// GetQuotas returns the account's quotas
 func (c *ClusterClient) GetQuotas() (*Quotas, error) {
 	uri := path.Join("/quotas", c.Username)
 	resp, err := c.NewRequest("GET", uri, nil)
