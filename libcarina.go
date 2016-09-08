@@ -7,16 +7,16 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 
-	"fmt"
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/rackspace"
-	"regexp"
 )
 
 // BetaEndpoint reflects the default endpoint for this library
@@ -133,17 +133,16 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 		return nil, err
 	}
 
-	if resp.StatusCode >= 300 {
+	if resp.StatusCode >= 400 {
 		err := HTTPErr{
 			Method:     method,
 			URL:        uri,
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
 		}
-		if resp.Body == nil {
-			body, _ := ioutil.ReadAll(resp.Body)
-			err.Body = string(body)
-		}
+		defer resp.Body.Close()
+		b, _ := ioutil.ReadAll(resp.Body)
+		err.Body = string(b)
 		return nil, err
 	}
 
@@ -160,10 +159,12 @@ func (c *ClusterClient) List() ([]Cluster, error) {
 	var result struct {
 		Clusters []Cluster `json:"clusters"`
 	}
+	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
 		return nil, err
 	}
+
 	return result.Clusters, nil
 }
 
@@ -171,7 +172,9 @@ func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	cluster := new(Cluster)
+	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&cluster)
 	if err != nil {
 		return nil, err
@@ -247,9 +250,8 @@ func (c *ClusterClient) GetZipURL(clusterName string) (string, error) {
 	}
 
 	var zipURLResp ZipURLResponse
-
+	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&zipURLResp)
-
 	if err != nil {
 		return "", err
 	}
@@ -374,7 +376,6 @@ func fetchZip(client *http.Client, zipurl string) (*zip.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
 		b, err := ioutil.ReadAll(resp.Body)
@@ -459,6 +460,7 @@ func (c *ClusterClient) Delete(token string) (*Cluster, error) {
 
 func quotasFromResponse(resp *http.Response) (*Quotas, error) {
 	quotas := new(Quotas)
+	defer resp.Body.Close()
 	err := json.NewDecoder(resp.Body).Decode(&quotas)
 	if err != nil {
 		return nil, err
