@@ -8,7 +8,41 @@ Provisional Go bindings for the beta release of [Carina](https://getcarina.com) 
 
 ## Examples
 
-Getting straight to Docker with only your username and API Key:
+### Create
+Create a new cluster
+
+```go
+package main
+
+import (
+	"time"
+
+	"github.com/getcarina/libcarina"
+)
+
+func createCluster(username string, apikey string, clusterName string) error {
+	// Connect to Carina
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
+
+	// Create a new cluster
+	cluster, err := cli.Create(libcarina.Cluster{
+	    Name: clusterName,
+	    COE: "swarm",
+	    HostType: "lxc",
+	})
+
+	// Wait for the cluster to become active
+	for cluster.Status == "creating" {
+		time.Sleep(10 * time.Second)
+		cluster, err = cli.Get(cluster.ID)
+	}
+
+	return err
+}
+```
+
+### Swarm
+Connect to a Docker Swarm cluster
 
 ```go
 package main
@@ -22,35 +56,56 @@ import (
 	"github.com/samalba/dockerclient"
 )
 
-func main() {
-	var err error
-
-	username := os.Args[1]
-	apiKey := os.Args[2]
-	clusterName := os.Args[3]
-
+func connectCluster(username string, apikey string, clusterID string) {
 	// Connect to Carina
-	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apiKey)
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
 
-	// Create a new cluster
-	cluster, _ := cli.Create(libcarina.Cluster{ClusterName: clusterName})
+	// Download the cluster credentials
+	creds, _ := cli.GetCredentials(clusterID)
 
-	// Wait for it to come up...
-	for cluster.Status == "new" || cluster.Status == "building" {
-		time.Sleep(10 * time.Second)
-		cluster, err = cli.Get(clusterName)
-		if err != nil {
-			break
-		}
-	}
+	// Get the IP of the host and the TLS configuration
+	host, _ := creds.ParseHost()
+	cfg, _ := creds.GetTLSConfig()
 
-	// Get the IP of the host and a *tls.Config
-	host, tlsConfig, _ := cli.GetDockerConfig(clusterName)
-
-	// Straight to Docker, do what you need
-	docker, _ := dockerclient.NewDockerClient(host, tlsConfig)
+	// Do the Dockers!
+	docker, _ := dockerclient.NewDockerClient(host, cfg)
 	info, _ := docker.Info()
 	fmt.Println(info)
+}
+```
 
+### Kubernetes
+Connect to a Kubernetes cluster
+
+```go
+package main
+
+import (
+	"fmt"
+	"github.com/getcarina/libcarina"
+
+	client "k8s.io/kubernetes/pkg/client/unversioned"
+	"k8s.io/kubernetes/pkg/client/restclient"
+	"k8s.io/kubernetes/pkg/api"
+)
+
+func connectCluster(username string, apikey string, clusterID string) {
+	// Connect to Carina
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
+
+	// Download the cluster credentials
+	creds, _ := cli.GetCredentials(clusterID)
+
+	// K8s stuff and things!
+	k8cfg := &restclient.Config{
+		Host:     creds.ParseHost(),
+		CertData: creds.Cert,
+		CAData:   creds.CA,
+		KeyData:  creds.Key,
+	}
+	client, err := client.New(config)
+	pods, err := client.Pods(api.NamespaceDefault).List(api.ListOptions{})
+	
+	return err
 }
 ```
