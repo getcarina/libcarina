@@ -87,7 +87,7 @@ func (creds CredentialsBundle) Verify() error {
 	telephone := &net.Dialer{Timeout: verifyCredentialsTimeout}
 	conn, err := tls.DialWithDialer(telephone, "tcp", host, tlsConfig)
 	if err != nil {
-		return errors.Wrapf(err, "Invalid credentials bundle. Unable to connect to %s.", host)
+		return errors.Wrapf(err, "Invalid credentials bundle. Unable to connect to %s", host)
 	}
 	conn.Close()
 
@@ -102,15 +102,15 @@ func (creds CredentialsBundle) ParseHost() (string, error) {
 	if config, isDocker := creds.Files["docker.env"]; isDocker {
 		host, ok = parseHost(config, "DOCKER_HOST=")
 		if !ok {
-			return "", errors.New("Invalid credentials bundle. Could not parse DOCKER_HOST from docker.env.")
+			return "", errors.New("Invalid credentials bundle. Could not parse DOCKER_HOST from docker.env")
 		}
 	} else if config, isKubernetes := creds.Files["kubectl.config"]; isKubernetes {
 		host, ok = parseHost(config, "server:")
 		if !ok {
-			return "", errors.New("Invalid credentials bundle. Could not parse server from kubectl.config.")
+			return "", errors.New("Invalid credentials bundle. Could not parse server from kubectl.config")
 		}
 	} else {
-		return "", errors.New("Invalid credentials bundle. Missing both docker.env and kubectl.config.")
+		return "", errors.New("Invalid credentials bundle. Missing both docker.env and kubectl.config")
 	}
 
 	hostURL, err := url.Parse(host)
@@ -153,7 +153,7 @@ func (creds CredentialsBundle) GetTLSConfig() (*tls.Config, error) {
 	tlsConfig.RootCAs = certPool
 	keypair, err := tls.X509KeyPair(creds.GetCert(), creds.GetKey())
 	if err != nil {
-		return &tlsConfig, errors.Wrap(err, "Invalid credentials bundle. Keypair mis-match.")
+		return &tlsConfig, errors.Wrap(err, "Invalid credentials bundle. Keypair mis-match")
 	}
 	tlsConfig.Certificates = []tls.Certificate{keypair}
 	return &tlsConfig, nil
