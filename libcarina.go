@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -168,6 +169,34 @@ func isClusterID(token string) bool {
 	return r.MatchString(token)
 }
 
+func (c *CarinaClient) lookupClusterName(token string) (string, error) {
+	if !isClusterID(token) {
+		return token, nil
+	}
+
+	clusters, err := c.List()
+	if err != nil {
+		return "", err
+	}
+
+	var name string
+	for _, cluster := range clusters {
+		if strings.ToLower(cluster.ID) == strings.ToLower(token) {
+			name = cluster.Name
+			break
+		}
+	}
+
+	if name == "" {
+		return "", HTTPErr{
+			StatusCode: http.StatusNotFound,
+			Status:     "404 NOT FOUND",
+			Body:       `{"message": "Cluster "` + token + ` not found"}`}
+	}
+
+	return name, nil
+}
+
 func (c *CarinaClient) lookupClusterID(token string) (string, error) {
 	if isClusterID(token) {
 		return token, nil
@@ -248,6 +277,11 @@ func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) 
 		return nil, err
 	}
 
+	name, err := c.lookupClusterName(token)
+	if err != nil {
+		return nil, err
+	}
+
 	url := c.Endpoint + path.Join("/clusters", id, "credentials/zip")
 	zr, err := c.fetchZip(url)
 	if err != nil {
@@ -277,7 +311,31 @@ func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) 
 		creds.Files[fname] = b
 	}
 
+	appendClusterName(name, creds)
+
 	return creds, nil
+}
+
+// Set the CLUSTER_NAME environment variable in the scripts
+func appendClusterName(name string, creds *CredentialsBundle) {
+	addStmt := func(fileName string, stmt string) {
+		script := creds.Files[fileName]
+		script = append(script, []byte(stmt)...)
+		creds.Files[fileName] = script
+	}
+
+	for _, fileName := range creds.Files {
+		switch fileName {
+		case "docker.env", "kubectl.env":
+			addStmt(fileName, fmt.Sprintf("export CARINA_CLUSTER_NAME=%s\n", name))
+		case "docker.fish", "kubectl.fish":
+			addStmt(fileName, fmt.Sprintf("set -x CARINA_CLUSTER_NAME %s\n", name))
+		case "docker.ps1", "kubectl.ps1":
+			addStmt(fileName, fmt.Sprintf("$env:CARINA_CLUSTER_NAME=\"%s\"\n", name))
+		case "docker.cmd", "kubectl.cmd":
+			addStmt(fileName, fmt.Sprintf("set CARINA_CLUSTER_NAME=%s\n", name))
+		}
+	}
 }
 
 func (c *CarinaClient) fetchZip(zipurl string) (*zip.Reader, error) {
