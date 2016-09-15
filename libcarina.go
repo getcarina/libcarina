@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -312,6 +313,8 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 
 	}
 
+	appendClusterName(clusterName, creds)
+
 	sourceLines := strings.Split(string(creds.DockerEnv), "\n")
 	for _, line := range sourceLines {
 		if strings.Index(line, "export ") == 0 {
@@ -330,6 +333,26 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	}
 
 	return creds, nil
+}
+
+func appendClusterName(name string, creds *Credentials) {
+	var stmt string
+
+	stmt = fmt.Sprintf("export CARINA_CLUSTER_NAME=%s\n", name)
+	creds.DockerEnv = append(creds.DockerEnv, []byte(stmt)...)
+	creds.Files["docker.env"] = creds.DockerEnv
+
+	stmt = fmt.Sprintf("set -x CARINA_CLUSTER_NAME %s\n", name)
+	creds.DockerFish = append(creds.DockerFish, []byte(stmt)...)
+	creds.Files["docker.fish"] = creds.DockerFish
+
+	stmt = fmt.Sprintf("$env:CARINA_CLUSTER_NAME=\"%s\"\n", name)
+	creds.DockerPS1 = append(creds.DockerPS1, []byte(stmt)...)
+	creds.Files["docker.ps1"] = creds.DockerPS1
+
+	stmt = fmt.Sprintf("set CARINA_CLUSTER_NAME=%s\n", name)
+	creds.DockerCmd = append(creds.DockerCmd, []byte(stmt)...)
+	creds.Files["docker.cmd"] = creds.DockerCmd
 }
 
 // GetDockerConfig returns the hostname and tls.Config for a given clustername
