@@ -30,16 +30,15 @@ func NewCredentialsBundle() *CredentialsBundle {
 }
 
 // LoadCredentialsBundle loads a credentials bundle from the filesystem
-func LoadCredentialsBundle(credentialsPath string) CredentialsBundle {
-	var creds CredentialsBundle
-
+func LoadCredentialsBundle(credentialsPath string) *CredentialsBundle {
 	files, err := ioutil.ReadDir(credentialsPath)
 	if err != nil {
-		creds.Err = errors.Wrapf(err, "Invalid credentials bundle. Cannot list files in %s", credentialsPath)
-		return creds
+		return &CredentialsBundle{
+			Err: errors.Wrapf(err, "Invalid credentials bundle. Cannot list files in %s", credentialsPath),
+		}
 	}
 
-	creds.Files = make(map[string][]byte)
+	creds := NewCredentialsBundle()
 	for _, file := range files {
 		filePath := filepath.Join(credentialsPath, file.Name())
 		fileContents, err := ioutil.ReadFile(filePath)
@@ -54,22 +53,22 @@ func LoadCredentialsBundle(credentialsPath string) CredentialsBundle {
 }
 
 // GetCA returns the contents of ca.pem
-func (creds CredentialsBundle) GetCA() []byte {
+func (creds *CredentialsBundle) GetCA() []byte {
 	return creds.Files["ca.pem"]
 }
 
 // GetCert returns the contents of cert.pem
-func (creds CredentialsBundle) GetCert() []byte {
+func (creds *CredentialsBundle) GetCert() []byte {
 	return creds.Files["cert.pem"]
 }
 
 // GetKey returns the contents of key.pem
-func (creds CredentialsBundle) GetKey() []byte {
+func (creds *CredentialsBundle) GetKey() []byte {
 	return creds.Files["key.pem"]
 }
 
 // Verify validates that we can connect to the Docker host specified in the credentials bundle
-func (creds CredentialsBundle) Verify() error {
+func (creds *CredentialsBundle) Verify() error {
 	if creds.Err != nil {
 		return creds.Err
 	}
@@ -95,7 +94,7 @@ func (creds CredentialsBundle) Verify() error {
 }
 
 // ParseHost finds the COE Endpoint, e.g. the swarm or kubernetes ip and port
-func (creds CredentialsBundle) ParseHost() (string, error) {
+func (creds *CredentialsBundle) ParseHost() (string, error) {
 	var host string
 	var ok bool
 
@@ -144,7 +143,7 @@ func parseHost(config []byte, token string) (string, bool) {
 }
 
 // GetTLSConfig puts together the necessary TLS configuration to connect to the COE Endpoint returned by ParseHost
-func (creds CredentialsBundle) GetTLSConfig() (*tls.Config, error) {
+func (creds *CredentialsBundle) GetTLSConfig() (*tls.Config, error) {
 	var tlsConfig tls.Config
 	tlsConfig.InsecureSkipVerify = true
 	certPool := x509.NewCertPool()

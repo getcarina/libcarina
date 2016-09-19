@@ -70,8 +70,8 @@ type Quotas struct {
 	MaxNodesPerCluster int `json:"max_nodes_per_cluster"`
 }
 
-func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClient, error) {
-	provider, err := rackspace.AuthenticatedClient(ao)
+func newClusterClient(endpoint string, ao *gophercloud.AuthOptions) (*ClusterClient, error) {
+	provider, err := rackspace.AuthenticatedClient(*ao)
 	if err != nil {
 		return nil, err
 	}
@@ -85,8 +85,8 @@ func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClie
 }
 
 // NewClusterClient create a new clusterclient by API Key
-func NewClusterClient(endpoint, username, apikey string) (*ClusterClient, error) {
-	ao := gophercloud.AuthOptions{
+func NewClusterClient(endpoint string, username string, apikey string) (*ClusterClient, error) {
+	ao := &gophercloud.AuthOptions{
 		Username:         username,
 		APIKey:           apikey,
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
@@ -129,14 +129,14 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 }
 
 // List the current clusters
-func (c *ClusterClient) List() ([]Cluster, error) {
+func (c *ClusterClient) List() ([]*Cluster, error) {
 	resp, err := c.NewRequest("GET", "/clusters", nil)
 	if err != nil {
 		return nil, err
 	}
 
 	var result struct {
-		Clusters []Cluster `json:"clusters"`
+		Clusters []*Cluster `json:"clusters"`
 	}
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&result)
@@ -209,7 +209,7 @@ func (c *ClusterClient) Get(token string) (*Cluster, error) {
 }
 
 // Create a new cluster with cluster options
-func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
+func (c *ClusterClient) Create(clusterOpts *Cluster) (*Cluster, error) {
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
 		return nil, err
