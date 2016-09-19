@@ -22,11 +22,6 @@ const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
 const userAgent = "getcarina/libcarina"
 
-// ZipURLResponse is the response that comes back from the zip endpoint
-type ZipURLResponse struct {
-	URL string `json:"zip_url"`
-}
-
 // ClusterClient accesses Carina directly
 type ClusterClient struct {
 	Client   *http.Client
