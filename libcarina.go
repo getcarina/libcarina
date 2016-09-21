@@ -24,7 +24,6 @@ import (
 const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
 const authHeaderKey = "X-Auth-Token"
-const userAgent = "getcarina/libcarina"
 
 // ZipURLResponse is the response that comes back from the zip endpoint
 type ZipURLResponse struct {
@@ -33,10 +32,11 @@ type ZipURLResponse struct {
 
 // ClusterClient accesses Carina directly
 type ClusterClient struct {
-	Client   *http.Client
-	Username string
-	Token    string
-	Endpoint string
+	Client    *http.Client
+	Username  string
+	Token     string
+	Endpoint  string
+	UserAgent string
 }
 
 // ErrorResponse is the JSON formatted error response from Carina
@@ -137,10 +137,11 @@ func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClie
 	}
 
 	return &ClusterClient{
-		Client:   &http.Client{},
-		Username: ao.Username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
+		Client:    &http.Client{},
+		Username:  ao.Username,
+		Token:     provider.TokenID,
+		Endpoint:  endpoint,
+		UserAgent: "getcarina/libcarina:make-swarm",
 	}, nil
 }
 
@@ -161,7 +162,7 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Add("Content-Type", mimetypeJSON)
 	req.Header.Add("Accept", mimetypeJSON)
 	req.Header.Add(authHeaderKey, c.Token)
@@ -262,7 +263,7 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 	if err != nil {
 		return nil, err
 	}
-	zr, err := fetchZip(url)
+	zr, err := c.fetchZip(url)
 	if err != nil || len(zr.File) < 6 {
 		return nil, err
 	}
@@ -383,13 +384,13 @@ func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
 	return &tlsConfig, nil
 }
 
-func fetchZip(zipurl string) (*zip.Reader, error) {
+func (c *ClusterClient) fetchZip(zipurl string) (*zip.Reader, error) {
 	req, err := http.NewRequest("GET", zipurl, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.UserAgent)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
