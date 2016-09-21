@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -22,12 +21,12 @@ const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
 const userAgent = "getcarina/libcarina"
 
-// ClusterClient accesses Carina directly
-type ClusterClient struct {
-	Client   *http.Client
-	Username string
-	Token    string
-	Endpoint string
+// CarinaClient accesses Carina directly
+type CarinaClient struct {
+	Client    *http.Client
+	Username  string
+	Token     string
+	Endpoint  string
 }
 
 // HTTPErr is returned when API requests are not successful
@@ -70,39 +69,39 @@ type Quotas struct {
 	MaxNodesPerCluster int `json:"max_nodes_per_cluster"`
 }
 
-func newClusterClient(endpoint string, ao *gophercloud.AuthOptions) (*ClusterClient, error) {
+func newClient(endpoint string, ao *gophercloud.AuthOptions) (*CarinaClient, error) {
 	provider, err := rackspace.AuthenticatedClient(*ao)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ClusterClient{
-		Client:   &http.Client{},
-		Username: ao.Username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
+	return &CarinaClient{
+		Client:    &http.Client{},
+		Username:  ao.Username,
+		Token:     provider.TokenID,
+		Endpoint:  endpoint,
 	}, nil
 }
 
-// NewClusterClient create a new clusterclient by API Key
-func NewClusterClient(endpoint string, username string, apikey string) (*ClusterClient, error) {
+// NewClient create a new CarinaClient by API Key
+func NewClient(endpoint string, username string, apikey string) (*CarinaClient, error) {
 	ao := &gophercloud.AuthOptions{
 		Username:         username,
 		APIKey:           apikey,
 		IdentityEndpoint: rackspace.RackspaceUSIdentity,
 	}
 
-	return newClusterClient(endpoint, ao)
+	return newClient(endpoint, ao)
 }
 
 // NewRequest handles a request using auth used by Carina
-func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
+func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, c.Endpoint+uri, body)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Add("Content-Type", mimetypeJSON)
 	req.Header.Add("Accept", mimetypeJSON)
 	req.Header.Add("X-Auth-Token", c.Token)
@@ -114,8 +113,8 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 
 	if resp.StatusCode >= 400 {
 		err := HTTPErr{
-			Method:     method,
-			URL:        uri,
+			Method:     req.Method,
+			URL:        req.URL.String(),
 			StatusCode: resp.StatusCode,
 			Status:     resp.Status,
 		}
@@ -129,7 +128,7 @@ func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*
 }
 
 // List the current clusters
-func (c *ClusterClient) List() ([]*Cluster, error) {
+func (c *CarinaClient) List() ([]*Cluster, error) {
 	resp, err := c.NewRequest("GET", "/clusters", nil)
 	if err != nil {
 		return nil, err
@@ -166,7 +165,7 @@ func isClusterID(token string) bool {
 	return r.MatchString(token)
 }
 
-func (c *ClusterClient) lookupClusterID(token string) (string, error) {
+func (c *CarinaClient) lookupClusterID(token string) (string, error) {
 	if isClusterID(token) {
 		return token, nil
 	}
@@ -197,7 +196,7 @@ func (c *ClusterClient) lookupClusterID(token string) (string, error) {
 }
 
 // Get a cluster by cluster by its name or id
-func (c *ClusterClient) Get(token string) (*Cluster, error) {
+func (c *CarinaClient) Get(token string) (*Cluster, error) {
 	id, err := c.lookupClusterID(token)
 	if err != nil {
 		return nil, err
@@ -209,7 +208,7 @@ func (c *ClusterClient) Get(token string) (*Cluster, error) {
 }
 
 // Create a new cluster with cluster options
-func (c *ClusterClient) Create(clusterOpts *Cluster) (*Cluster, error) {
+func (c *CarinaClient) Create(clusterOpts *Cluster) (*Cluster, error) {
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
 		return nil, err
@@ -221,14 +220,14 @@ func (c *ClusterClient) Create(clusterOpts *Cluster) (*Cluster, error) {
 }
 
 // GetCredentials returns a Credentials struct for the given cluster name
-func (c *ClusterClient) GetCredentials(token string) (*CredentialsBundle, error) {
+func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) {
 	id, err := c.lookupClusterID(token)
 	if err != nil {
 		return nil, err
 	}
 
 	url := c.Endpoint + path.Join("/clusters", id, "credentials/zip")
-	zr, err := fetchZip(c.Client, url)
+	zr, err := c.fetchZip(url)
 	if err != nil {
 		return nil, err
 	}
@@ -259,25 +258,30 @@ func (c *ClusterClient) GetCredentials(token string) (*CredentialsBundle, error)
 	return creds, nil
 }
 
-func fetchZip(client *http.Client, zipurl string) (*zip.Reader, error) {
+func (c *CarinaClient) fetchZip(zipurl string) (*zip.Reader, error) {
 	req, err := http.NewRequest("GET", zipurl, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("User-Agent", c.UserAgent)
 
-	resp, err := client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 
 	if resp.StatusCode >= 400 {
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
+		err := HTTPErr{
+			Method:     req.Method,
+			URL:        req.URL.String(),
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
 		}
-		return nil, errors.New(string(b))
+		defer resp.Body.Close()
+		b, _ := ioutil.ReadAll(resp.Body)
+		err.Body = string(b)
+		return nil, err
 	}
 
 	buf := &bytes.Buffer{}
@@ -292,7 +296,7 @@ func fetchZip(client *http.Client, zipurl string) (*zip.Reader, error) {
 }
 
 // Grow increases a cluster by the provided number of nodes
-func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
+func (c *CarinaClient) Grow(clusterName string, nodes int) (*Cluster, error) {
 	incr := map[string]int{
 		"nodes": nodes,
 	}
@@ -309,7 +313,7 @@ func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
 }
 
 // SetAutoScale enables or disables autoscale on an already running cluster
-func (c *ClusterClient) SetAutoScale(clusterName string, autoscale bool) (*Cluster, error) {
+func (c *CarinaClient) SetAutoScale(clusterName string, autoscale bool) (*Cluster, error) {
 	setAutoscale := "false"
 	if autoscale {
 		setAutoscale = "true"
@@ -325,7 +329,7 @@ type actionRequest struct {
 	Action string `json:"action"`
 }
 
-func (c *ClusterClient) doAction(clusterName, action string) (*Cluster, error) {
+func (c *CarinaClient) doAction(clusterName, action string) (*Cluster, error) {
 	actionReq, err := json.Marshal(actionRequest{Action: action})
 	if err != nil {
 		return nil, err
@@ -337,12 +341,12 @@ func (c *ClusterClient) doAction(clusterName, action string) (*Cluster, error) {
 }
 
 // Rebuild creates a wholly new Swarm cluster
-func (c *ClusterClient) Rebuild(clusterName string) (*Cluster, error) {
+func (c *CarinaClient) Rebuild(clusterName string) (*Cluster, error) {
 	return c.doAction(clusterName, rebuildSwarmAction)
 }
 
 // Delete nukes a cluster out of existence
-func (c *ClusterClient) Delete(token string) (*Cluster, error) {
+func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	id, err := c.lookupClusterID(token)
 	if err != nil {
 		return nil, err
@@ -364,7 +368,7 @@ func quotasFromResponse(resp *http.Response) (*Quotas, error) {
 }
 
 // GetQuotas returns the account's quotas
-func (c *ClusterClient) GetQuotas() (*Quotas, error) {
+func (c *CarinaClient) GetQuotas() (*Quotas, error) {
 	uri := path.Join("/quotas", c.Username)
 	resp, err := c.NewRequest("GET", uri, nil)
 	if err != nil {
