@@ -19,7 +19,6 @@ import (
 // BetaEndpoint reflects the default endpoint for this library
 const BetaEndpoint = "https://app.getcarina.com"
 const mimetypeJSON = "application/json"
-const userAgent = "getcarina/libcarina"
 
 // CarinaClient accesses Carina directly
 type CarinaClient struct {
@@ -27,6 +26,7 @@ type CarinaClient struct {
 	Username  string
 	Token     string
 	Endpoint  string
+	UserAgent string
 }
 
 // HTTPErr is returned when API requests are not successful
@@ -80,6 +80,7 @@ func newClient(endpoint string, ao *gophercloud.AuthOptions) (*CarinaClient, err
 		Username:  ao.Username,
 		Token:     provider.TokenID,
 		Endpoint:  endpoint,
+		UserAgent: "getcarina/libcarina",
 	}, nil
 }
 
