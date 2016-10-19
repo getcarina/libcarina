@@ -42,27 +42,6 @@ func (err HTTPErr) Error() string {
 	return fmt.Sprintf("%s %s (%d-%s)", err.Method, err.URL, err.StatusCode, err.Status)
 }
 
-// Cluster is a cluster of Docker nodes
-type Cluster struct {
-	// ID of the cluster
-	ID string `json:"id"`
-
-	// Name of the cluster
-	Name string `json:"name"`
-
-	// COE (container orchestration engine) used by the cluster
-	COE string `json:"coe"`
-
-	// Underlying type of the host nodes, such as lxc or vm
-	HostType string `json:"host_type"`
-
-	// Nodes in the cluster
-	Nodes int `json:"node_count,omitempty"`
-
-	// Status of the cluster
-	Status string `json:"status,omitempty"`
-}
-
 // Quotas is the set of account quotas
 type Quotas struct {
 	MaxClusters        int `json:"max_clusters"`
@@ -196,6 +175,25 @@ func (c *CarinaClient) lookupClusterID(token string) (string, error) {
 	return id, nil
 }
 
+// ListClusterTypes returns a list of cluster types
+func (c *CarinaClient) ListClusterTypes() ([]*ClusterType, error) {
+	resp, err := c.NewRequest("GET", "/cluster_types", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		Types []*ClusterType `json:"cluster_types"`
+	}
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, err
+	}
+
+	return result.Types, nil
+}
+
 // Get a cluster by cluster by its name or id
 func (c *CarinaClient) Get(token string) (*Cluster, error) {
 	id, err := c.lookupClusterID(token)
@@ -209,7 +207,7 @@ func (c *CarinaClient) Get(token string) (*Cluster, error) {
 }
 
 // Create a new cluster with cluster options
-func (c *CarinaClient) Create(clusterOpts *Cluster) (*Cluster, error) {
+func (c *CarinaClient) Create(clusterOpts *CreateClusterOpts) (*Cluster, error) {
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
 		return nil, err

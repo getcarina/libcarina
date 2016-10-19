@@ -121,7 +121,7 @@ func (creds *CredentialsBundle) ParseHost() (string, error) {
 	// So use the default 443 for HTTPS endpoints
 	if !strings.Contains(hostURL.Host, ":") {
 		if hostURL.Scheme == "https" {
-			hostURL.Host+=":443"
+			hostURL.Host += ":443"
 		} else {
 			return "", fmt.Errorf("Invalid credentials bundle. Could not determine the host port from %s", host)
 		}
