@@ -18,8 +18,9 @@ import (
 
 // CarinaEndpoint is the public Carina API endpoint
 const CarinaEndpoint = "https://api.getcarina.com"
+
+// UserAgentPrefix is the default user agent string, consumers should append their application version to CarinaClient.UserAgent
 const UserAgentPrefix = "getcarina/libcarina"
-const mimetypeJSON = "application/json"
 
 // CarinaClient accesses Carina directly
 type CarinaClient struct {
@@ -103,8 +104,8 @@ func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*h
 	}
 
 	req.Header.Set("User-Agent", c.UserAgent)
-	req.Header.Add("Content-Type", mimetypeJSON)
-	req.Header.Add("Accept", mimetypeJSON)
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
 	req.Header.Add("X-Auth-Token", c.Token)
 
 	resp, err := c.Client.Do(req)
@@ -325,4 +326,21 @@ func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
+}
+
+// GetAPIMetadata returns metadata about the Carina API
+func (c *CarinaClient) GetAPIMetadata() (*APIMetadata, error) {
+	resp, err := c.NewRequest("GET", "/", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata := &APIMetadata{}
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&metadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata, nil
 }
