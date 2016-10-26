@@ -42,12 +42,6 @@ func (err HTTPErr) Error() string {
 	return fmt.Sprintf("%s %s (%d-%s)", err.Method, err.URL, err.StatusCode, err.Status)
 }
 
-// Quotas is the set of account quotas
-type Quotas struct {
-	MaxClusters        int `json:"max_clusters"`
-	MaxNodesPerCluster int `json:"max_nodes_per_cluster"`
-}
-
 func newClient(endpoint string, ao *gophercloud.AuthOptions) (*CarinaClient, error) {
 	provider, err := rackspace.AuthenticatedClient(*ao)
 	if err != nil {
@@ -294,56 +288,6 @@ func (c *CarinaClient) fetchZip(zipurl string) (*zip.Reader, error) {
 	return zip.NewReader(b, int64(b.Len()))
 }
 
-// Grow increases a cluster by the provided number of nodes
-func (c *CarinaClient) Grow(clusterName string, nodes int) (*Cluster, error) {
-	incr := map[string]int{
-		"nodes": nodes,
-	}
-
-	growthRequest, err := json.Marshal(incr)
-	if err != nil {
-		return nil, err
-	}
-	r := bytes.NewReader(growthRequest)
-
-	uri := path.Join("/clusters", c.Username, clusterName, "grow")
-	resp, err := c.NewRequest("POST", uri, r)
-	return clusterFromResponse(resp, err)
-}
-
-// SetAutoScale enables or disables autoscale on an already running cluster
-func (c *CarinaClient) SetAutoScale(clusterName string, autoscale bool) (*Cluster, error) {
-	setAutoscale := "false"
-	if autoscale {
-		setAutoscale = "true"
-	}
-	uri := path.Join("/clusters", c.Username, clusterName, "autoscale", setAutoscale)
-	resp, err := c.NewRequest("PUT", uri, nil)
-	return clusterFromResponse(resp, err)
-}
-
-const rebuildSwarmAction = "rebuild-swarm"
-
-type actionRequest struct {
-	Action string `json:"action"`
-}
-
-func (c *CarinaClient) doAction(clusterName, action string) (*Cluster, error) {
-	actionReq, err := json.Marshal(actionRequest{Action: action})
-	if err != nil {
-		return nil, err
-	}
-	r := bytes.NewReader(actionReq)
-	uri := path.Join("/clusters", c.Username, clusterName, "action")
-	resp, err := c.NewRequest("POST", uri, r)
-	return clusterFromResponse(resp, err)
-}
-
-// Rebuild creates a wholly new Swarm cluster
-func (c *CarinaClient) Rebuild(clusterName string) (*Cluster, error) {
-	return c.doAction(clusterName, rebuildSwarmAction)
-}
-
 // Delete nukes a cluster out of existence
 func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	id, err := c.lookupClusterID(token)
@@ -356,22 +300,3 @@ func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	return clusterFromResponse(resp, err)
 }
 
-func quotasFromResponse(resp *http.Response) (*Quotas, error) {
-	quotas := new(Quotas)
-	defer resp.Body.Close()
-	err := json.NewDecoder(resp.Body).Decode(&quotas)
-	if err != nil {
-		return nil, err
-	}
-	return quotas, nil
-}
-
-// GetQuotas returns the account's quotas
-func (c *CarinaClient) GetQuotas() (*Quotas, error) {
-	uri := path.Join("/quotas", c.Username)
-	resp, err := c.NewRequest("GET", uri, nil)
-	if err != nil {
-		return nil, err
-	}
-	return quotasFromResponse(resp)
-}
