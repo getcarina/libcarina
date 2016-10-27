@@ -18,6 +18,7 @@ import (
 
 // CarinaEndpoint is the public Carina API endpoint
 const CarinaEndpoint = "https://api.getcarina.com"
+const UserAgentPrefix = "getcarina/libcarina"
 const mimetypeJSON = "application/json"
 
 // CarinaClient accesses Carina directly
@@ -42,30 +43,56 @@ func (err HTTPErr) Error() string {
 	return fmt.Sprintf("%s %s (%d-%s)", err.Method, err.URL, err.StatusCode, err.Status)
 }
 
-func newClient(endpoint string, ao *gophercloud.AuthOptions) (*CarinaClient, error) {
-	provider, err := rackspace.AuthenticatedClient(*ao)
-	if err != nil {
-		return nil, err
+// NewClient create an authenticated CarinaClient
+func NewClient(endpoint string, username string, apikey string, token string) (*CarinaClient, error) {
+
+	verifyToken := func() error {
+		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+token, nil)
+		if err != nil {
+			return err
+		}
+
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("X-Auth-Token", token)
+		req.Header.Add("User-Agent", UserAgentPrefix)
+
+		httpClient := &http.Client{}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("Cached token is invalid")
+		}
+
+		return nil
+	}
+
+	// Attempt to authenticate with the cached token first, falling back on the apikey
+	if token == "" || verifyToken() != nil {
+		ao := &gophercloud.AuthOptions{
+			Username:         username,
+			APIKey:           apikey,
+			IdentityEndpoint: rackspace.RackspaceUSIdentity,
+		}
+
+		provider, err := rackspace.AuthenticatedClient(*ao)
+		if err != nil {
+			return nil, err
+		}
+		token = provider.TokenID
 	}
 
 	return &CarinaClient{
 		Client:    &http.Client{},
-		Username:  ao.Username,
-		Token:     provider.TokenID,
+		Username:  username,
+		Token:     token,
 		Endpoint:  endpoint,
-		UserAgent: "getcarina/libcarina",
+		UserAgent: UserAgentPrefix,
 	}, nil
-}
-
-// NewClient create a new CarinaClient by API Key
-func NewClient(endpoint string, username string, apikey string) (*CarinaClient, error) {
-	ao := &gophercloud.AuthOptions{
-		Username:         username,
-		APIKey:           apikey,
-		IdentityEndpoint: rackspace.RackspaceUSIdentity,
-	}
-
-	return newClient(endpoint, ao)
 }
 
 // NewRequest handles a request using auth used by Carina
@@ -125,7 +152,7 @@ func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 		return nil, err
 	}
 
-	cluster := new(Cluster)
+	cluster := &Cluster{}
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&cluster)
 	if err != nil {
@@ -299,4 +326,3 @@ func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
 }
-
