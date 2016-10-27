@@ -16,8 +16,8 @@ import (
 	"github.com/rackspace/gophercloud/rackspace"
 )
 
-// BetaEndpoint reflects the default endpoint for this library
-const BetaEndpoint = "https://app.getcarina.com"
+// CarinaEndpoint is the public Carina API endpoint
+const CarinaEndpoint = "https://api.getcarina.com"
 const mimetypeJSON = "application/json"
 
 // CarinaClient accesses Carina directly
