@@ -103,10 +103,11 @@ func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*h
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", c.UserAgent)
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("X-Auth-Token", c.Token)
+	req.Header.Set("User-Agent", c.UserAgent)
+	req.Header.Add("API-Version", "rax:container-infra "+SupportedAPIVersion)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
