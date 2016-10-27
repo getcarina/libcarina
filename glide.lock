@@ -1,0 +1,28 @@
+hash: 66a83db7e1fcb0ee3e6856ae25a48bf1b59bf7354da2c3b2f8a4c5956057b22b
+updated: 2016-10-27T11:29:46.026241422-05:00
+imports:
+- name: github.com/gophercloud/gophercloud
+  version: b267f2372f44b2479bb598d4e333804b667b80e5
+  vcs: git
+  subpackages:
+  - rackspace
+- name: github.com/Masterminds/semver
+  version: 8d0431362b544d1a3536cca26684828866a7de09
+- name: github.com/mitchellh/mapstructure
+  version: f3009df150dadf309fdee4a54ed65c124afad715
+- name: github.com/pkg/errors
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
+- name: github.com/rackspace/gophercloud
+  version: e00690e87603abe613e9f02c816c7c4bef82e063
+  subpackages:
+  - rackspace
+  - openstack
+  - openstack/utils
+  - rackspace/identity/v2/tokens
+  - openstack/identity/v2/tokens
+  - openstack/identity/v3/tokens
+  - openstack/identity/v2/tenants
+  - testhelper
+  - testhelper/client
+  - pagination
+testImports: []

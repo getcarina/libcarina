@@ -1,0 +1,11 @@
+package: github.com/getcarina/libcarina
+import:
+- package: github.com/Masterminds/semver
+  version: ^1.1.1
+- package: github.com/pkg/errors
+  version: ^0.8.0
+- package: github.com/gophercloud/gophercloud
+  version: magnum
+  vcs: git
+  subpackages:
+  - rackspace
