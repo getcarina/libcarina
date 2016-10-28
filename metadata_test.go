@@ -61,7 +61,6 @@ func TestAPIMetadata_GetSupportedVersionRange(t *testing.T) {
 	}
 
 	min, max := metadata.GetSupportedVersionRange()
-	t.Log("min=%s, max=%s", min, max)
 	if min != "0.5" {
 		t.Logf("Expected min: 0.5 but got %s\n", min)
 		t.Fail()

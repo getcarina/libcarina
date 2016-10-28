@@ -3,8 +3,8 @@ package libcarina
 import (
 	"sort"
 
-	"github.com/Masterminds/semver"
 	"fmt"
+	"github.com/Masterminds/semver"
 )
 
 // SupportedAPIVersion is the version of the API against which this library was developed
@@ -65,10 +65,10 @@ func (metadata *APIMetadata) GetSupportedVersionRange() (min string, max string)
 	}
 
 	minV := versions[0]
-	min = fmt.Sprintf("%d.%d",minV.Major(), minV.Minor())
+	min = fmt.Sprintf("%d.%d", minV.Major(), minV.Minor())
 
 	maxV := versions[numVersions-1]
-	max = fmt.Sprintf("%d.%d",maxV.Major(), maxV.Minor())
+	max = fmt.Sprintf("%d.%d", maxV.Major(), maxV.Minor())
 
 	return min, max
 }
