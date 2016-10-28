@@ -2,7 +2,8 @@
 
 [![GoDoc](https://godoc.org/github.com/rackerlabs/libcarina?status.png)](https://godoc.org/github.com/rackerlabs/libcarina)
 
-Provisional Go bindings for the beta release of [Carina](https://getcarina.com) by Rackspace. If you're looking for a client binding, [`carina`](https://github.com/rackerlabs/carina) is your friend.
+Provisional Go bindings for the beta release of [Carina](https://getcarina.com) by Rackspace. The `carina` client source
+code can be found at [https://github.com/rackerlabs/carina](https://github.com/rackerlabs/carina).
 
 ![](https://cloud.githubusercontent.com/assets/836375/10503963/e5bcca8c-72c0-11e5-8e14-2c1697297d7e.png)
 
@@ -22,13 +23,12 @@ import (
 
 func createCluster(username string, apikey string, clusterName string) error {
 	// Connect to Carina
-	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey, "")
 
 	// Create a new cluster
 	cluster, err := cli.Create(libcarina.Cluster{
 	    Name: clusterName,
-	    COE: "swarm",
-	    HostType: "lxc",
+	    ClusterTypeId: 1,
 	})
 
 	// Wait for the cluster to become active
@@ -58,7 +58,7 @@ import (
 
 func connectCluster(username string, apikey string, clusterID string) {
 	// Connect to Carina
-	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey, "")
 
 	// Download the cluster credentials
 	creds, _ := cli.GetCredentials(clusterID)
@@ -91,7 +91,7 @@ import (
 
 func connectCluster(username string, apikey string, clusterID string) {
 	// Connect to Carina
-	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey)
+	cli, _ := libcarina.NewClusterClient(libcarina.BetaEndpoint, username, apikey, "")
 
 	// Download the cluster credentials
 	creds, _ := cli.GetCredentials(clusterID)
