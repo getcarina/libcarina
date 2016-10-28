@@ -1,9 +1,9 @@
 # libcarina
 
-[![GoDoc](https://godoc.org/github.com/rackerlabs/libcarina?status.png)](https://godoc.org/github.com/rackerlabs/libcarina)
+[![GoDoc](https://godoc.org/github.com/getcarina/libcarina?status.png)](https://godoc.org/github.com/getcarina/libcarina)
 
 Provisional Go bindings for the beta release of [Carina](https://getcarina.com) by Rackspace. The `carina` client source
-code can be found at [https://github.com/rackerlabs/carina](https://github.com/rackerlabs/carina).
+code can be found at [https://github.com/getcarina/carina](https://github.com/getcarina/carina).
 
 ![](https://cloud.githubusercontent.com/assets/836375/10503963/e5bcca8c-72c0-11e5-8e14-2c1697297d7e.png)
 
