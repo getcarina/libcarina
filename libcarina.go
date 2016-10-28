@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -324,7 +323,7 @@ func appendClusterName(name string, creds *CredentialsBundle) {
 		creds.Files[fileName] = script
 	}
 
-	for _, fileName := range creds.Files {
+	for fileName := range creds.Files {
 		switch fileName {
 		case "docker.env", "kubectl.env":
 			addStmt(fileName, fmt.Sprintf("export CARINA_CLUSTER_NAME=%s\n", name))
