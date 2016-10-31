@@ -281,15 +281,28 @@ func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) 
 		return nil, err
 	}
 
-	url := c.Endpoint + path.Join("/clusters", id, "credentials/zip")
-	zr, err := c.fetchZip(url)
+	uri := path.Join("/clusters", id, "credentials/zip")
+	resp, err := c.NewRequest("GET", uri, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	// fetch the contents for each file
+	// Read the body as a zip file
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	b := bytes.NewReader(buf.Bytes())
+	zipr, err := zip.NewReader(b, int64(b.Len()))
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch the contents for each file in the zipfile
 	creds := NewCredentialsBundle()
-	for _, zf := range zr.File {
+	for _, zf := range zipr.File {
 		_, fname := path.Split(zf.Name)
 		fi := zf.FileInfo()
 
@@ -335,43 +348,6 @@ func appendClusterName(name string, creds *CredentialsBundle) {
 			addStmt(fileName, fmt.Sprintf("set CARINA_CLUSTER_NAME=%s\n", name))
 		}
 	}
-}
-
-func (c *CarinaClient) fetchZip(zipurl string) (*zip.Reader, error) {
-	req, err := http.NewRequest("GET", zipurl, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Set("User-Agent", c.UserAgent)
-
-	resp, err := c.Client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode >= 400 {
-		err := HTTPErr{
-			Method:     req.Method,
-			URL:        req.URL.String(),
-			StatusCode: resp.StatusCode,
-			Status:     resp.Status,
-		}
-		defer resp.Body.Close()
-		b, _ := ioutil.ReadAll(resp.Body)
-		err.Body = string(b)
-		return nil, err
-	}
-
-	buf := &bytes.Buffer{}
-
-	_, err = io.Copy(buf, resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	b := bytes.NewReader(buf.Bytes())
-	return zip.NewReader(b, int64(b.Len()))
 }
 
 // Delete nukes a cluster out of existence
