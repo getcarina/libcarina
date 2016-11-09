@@ -17,7 +17,7 @@ import (
 )
 
 // CarinaEndpoint is the public Carina API endpoint
-const CarinaEndpoint = "https://api.getcarina.com"
+const CarinaEndpoint = "https://api.dfw.getcarina.com"
 
 // UserAgentPrefix is the default user agent string, consumers should append their application version to CarinaClient.UserAgent
 const UserAgentPrefix = "getcarina/libcarina"
