@@ -16,9 +16,6 @@ import (
 	"github.com/rackspace/gophercloud/rackspace"
 )
 
-// CarinaEndpoint is the public Carina API endpoint
-const CarinaEndpoint = "https://api.dfw.getcarina.com"
-
 // UserAgentPrefix is the default user agent string, consumers should append their application version to CarinaClient.UserAgent
 const UserAgentPrefix = "getcarina/libcarina"
 
@@ -45,16 +42,16 @@ func (err HTTPErr) Error() string {
 }
 
 // NewClient create an authenticated CarinaClient
-func NewClient(endpoint string, username string, apikey string, token string) (*CarinaClient, error) {
+func NewClient(username string, apikey string, region string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
 
 	verifyToken := func() error {
-		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+token, nil)
+		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+ cachedToken, nil)
 		if err != nil {
 			return err
 		}
 
 		req.Header.Add("Accept", "application/json")
-		req.Header.Add("X-Auth-Token", token)
+		req.Header.Add("X-Auth-Token", cachedToken)
 		req.Header.Add("User-Agent", UserAgentPrefix)
 
 		httpClient := &http.Client{}
@@ -73,7 +70,7 @@ func NewClient(endpoint string, username string, apikey string, token string) (*
 	}
 
 	// Attempt to authenticate with the cached token first, falling back on the apikey
-	if token == "" || verifyToken() != nil {
+	if cachedToken == "" || verifyToken() != nil {
 		ao := &gophercloud.AuthOptions{
 			Username:         username,
 			APIKey:           apikey,
@@ -84,14 +81,23 @@ func NewClient(endpoint string, username string, apikey string, token string) (*
 		if err != nil {
 			return nil, err
 		}
-		token = provider.TokenID
+		cachedToken = provider.TokenID
+
+		eo := gophercloud.EndpointOpts{Region: region}
+		eo.ApplyDefaults(CarinaEndpointType)
+		url, err := provider.EndpointLocator(eo)
+		if err != nil {
+			return nil, err
+		}
+
+		cachedEndpoint = strings.TrimRight(url, "/")
 	}
 
 	return &CarinaClient{
 		Client:    &http.Client{},
 		Username:  username,
-		Token:     token,
-		Endpoint:  endpoint,
+		Token:     cachedToken,
+		Endpoint:  cachedEndpoint,
 		UserAgent: UserAgentPrefix,
 	}, nil
 }
@@ -107,7 +113,7 @@ func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*h
 	req.Header.Add("Accept", "application/json")
 	req.Header.Add("X-Auth-Token", c.Token)
 	req.Header.Set("User-Agent", c.UserAgent)
-	req.Header.Add("API-Version", "rax:container-infra "+SupportedAPIVersion)
+	req.Header.Add("API-Version", CarinaEndpointType+" "+SupportedAPIVersion)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
