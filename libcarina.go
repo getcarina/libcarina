@@ -37,15 +37,43 @@ type HTTPErr struct {
 	Body       string
 }
 
+// CarinaErrorResponse represents the response returned by Carina when a request fails
+type CarinaErrorResponse struct {
+	Errors []CarinaError `json:"errors"`
+}
+
+// CarinaError represents an error message from the Carina API
+type CarinaError struct {
+	Code      string `json:"code"`
+	Detail    string `json:"detail"`
+	RequestID string `json:"request_id"`
+	Status    int    `json:"status"`
+	Title     string `json:"title"`
+}
+
 func (err HTTPErr) Error() string {
-	return fmt.Sprintf("%s %s (%d-%s)", err.Method, err.URL, err.StatusCode, err.Status)
+	var carinaResp CarinaErrorResponse
+
+	jsonErr := json.Unmarshal([]byte(err.Body), &carinaResp)
+	if jsonErr != nil {
+		return fmt.Sprintf("%s %s (%d)", err.Method, err.URL, err.StatusCode)
+	}
+
+	var errorMessages bytes.Buffer
+	for _, carinaErr := range carinaResp.Errors {
+		errorMessages.WriteString("\nMessage: ")
+		errorMessages.WriteString(carinaErr.Title)
+		errorMessages.WriteString(" - ")
+		errorMessages.WriteString(carinaErr.Detail)
+	}
+	return fmt.Sprintf("%s %s (%d)%s", err.Method, err.URL, err.StatusCode, errorMessages.String())
 }
 
 // NewClient create an authenticated CarinaClient
 func NewClient(username string, apikey string, region string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
 
 	verifyToken := func() error {
-		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+ cachedToken, nil)
+		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+cachedToken, nil)
 		if err != nil {
 			return err
 		}
