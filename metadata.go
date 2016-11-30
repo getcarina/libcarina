@@ -1,16 +1,16 @@
 package libcarina
 
 import (
+	"fmt"
 	"sort"
 
-	"fmt"
 	"github.com/Masterminds/semver"
 )
 
 // SupportedAPIVersion is the version of the API against which this library was developed
 const SupportedAPIVersion = "1.0"
 
-// APIType is the endpoint type in the service catalog
+// CarinaEndpointType is the endpoint type in the service catalog
 const CarinaEndpointType = "rax:container"
 
 // APIMetadata contains information about the API
