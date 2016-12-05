@@ -303,6 +303,30 @@ func (c *CarinaClient) Create(clusterOpts *CreateClusterOpts) (*Cluster, error) 
 	return clusterFromResponse(resp, err)
 }
 
+// Resize a cluster with resize task options
+func (c *CarinaClient) Resize(token string, nodes int) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	resizeOpts := newResizeOpts(nodes)
+	resizeOptsJSON, err := json.Marshal(resizeOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	body := bytes.NewReader(resizeOptsJSON)
+	uri := path.Join("/clusters", id, "tasks")
+	resp, err := c.NewRequest("POST", uri, body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return c.Get(token)
+}
+
 // GetCredentials returns a Credentials struct for the given cluster name
 func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) {
 	id, err := c.lookupClusterID(token)
