@@ -70,10 +70,14 @@ func (err HTTPErr) Error() string {
 }
 
 // NewClient create an authenticated CarinaClient
-func NewClient(username string, apikey string, region string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
+func NewClient(username string, apikey string, region string, authEndpointOverride string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
+	authEndpoint := rackspace.RackspaceUSIdentity
+	if authEndpointOverride != "" {
+		authEndpoint = authEndpointOverride
+	}
 
 	verifyToken := func() error {
-		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+cachedToken, nil)
+		req, err := http.NewRequest("HEAD", authEndpoint+"tokens/"+cachedToken, nil)
 		if err != nil {
 			return err
 		}
@@ -102,7 +106,7 @@ func NewClient(username string, apikey string, region string, cachedToken string
 		ao := &gophercloud.AuthOptions{
 			Username:         username,
 			APIKey:           apikey,
-			IdentityEndpoint: rackspace.RackspaceUSIdentity,
+			IdentityEndpoint: authEndpoint,
 		}
 
 		provider, err := rackspace.AuthenticatedClient(*ao)
