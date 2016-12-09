@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/rackspace"
 )
@@ -70,12 +71,16 @@ func (err HTTPErr) Error() string {
 }
 
 // NewClient create an authenticated CarinaClient
-func NewClient(username string, apikey string, region string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
+func NewClient(username string, apikey string, region string, authEndpointOverride string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
+	authEndpoint := rackspace.RackspaceUSIdentity
+	if authEndpointOverride != "" {
+		authEndpoint = authEndpointOverride
+	}
 
 	verifyToken := func() error {
-		req, err := http.NewRequest("HEAD", rackspace.RackspaceUSIdentity+"tokens/"+cachedToken, nil)
+		req, err := http.NewRequest("HEAD", authEndpoint+"tokens/"+cachedToken, nil)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		req.Header.Add("Accept", "application/json")
@@ -85,7 +90,7 @@ func NewClient(username string, apikey string, region string, cachedToken string
 		httpClient := &http.Client{}
 		resp, err := httpClient.Do(req)
 		if err != nil {
-			return err
+			return errors.WithStack(err)
 		}
 
 		defer resp.Body.Close()
@@ -102,12 +107,12 @@ func NewClient(username string, apikey string, region string, cachedToken string
 		ao := &gophercloud.AuthOptions{
 			Username:         username,
 			APIKey:           apikey,
-			IdentityEndpoint: rackspace.RackspaceUSIdentity,
+			IdentityEndpoint: authEndpoint,
 		}
 
 		provider, err := rackspace.AuthenticatedClient(*ao)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		cachedToken = provider.TokenID
 
@@ -115,7 +120,7 @@ func NewClient(username string, apikey string, region string, cachedToken string
 		eo.ApplyDefaults(CarinaEndpointType)
 		url, err := provider.EndpointLocator(eo)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 
 		cachedEndpoint = strings.TrimRight(url, "/")
@@ -134,7 +139,7 @@ func NewClient(username string, apikey string, region string, cachedToken string
 func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, c.Endpoint+uri, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	req.Header.Add("Content-Type", "application/json")
@@ -145,7 +150,7 @@ func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*h
 
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	if resp.StatusCode >= 400 {
@@ -158,7 +163,7 @@ func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*h
 		defer resp.Body.Close()
 		b, _ := ioutil.ReadAll(resp.Body)
 		err.Body = string(b)
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return resp, nil
@@ -177,7 +182,7 @@ func (c *CarinaClient) List() ([]*Cluster, error) {
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return result.Clusters, nil
@@ -185,14 +190,14 @@ func (c *CarinaClient) List() ([]*Cluster, error) {
 
 func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	cluster := &Cluster{}
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&cluster)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return cluster, nil
 }
@@ -273,7 +278,7 @@ func (c *CarinaClient) ListClusterTypes() ([]*ClusterType, error) {
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&result)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return result.Types, nil
@@ -295,7 +300,7 @@ func (c *CarinaClient) Get(token string) (*Cluster, error) {
 func (c *CarinaClient) Create(clusterOpts *CreateClusterOpts) (*Cluster, error) {
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	body := bytes.NewReader(clusterOptsJSON)
@@ -313,7 +318,7 @@ func (c *CarinaClient) Resize(token string, nodes int) (*Cluster, error) {
 	resizeOpts := newResizeOpts(nodes)
 	resizeOptsJSON, err := json.Marshal(resizeOpts)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	body := bytes.NewReader(resizeOptsJSON)
@@ -349,13 +354,13 @@ func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) 
 	buf := &bytes.Buffer{}
 	_, err = io.Copy(buf, resp.Body)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	b := bytes.NewReader(buf.Bytes())
 	zipr, err := zip.NewReader(b, int64(b.Len()))
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	// Fetch the contents for each file in the zipfile
@@ -371,12 +376,12 @@ func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) 
 
 		rc, err := zf.Open()
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 
 		b, err := ioutil.ReadAll(rc)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		creds.Files[fname] = b
 	}
@@ -431,7 +436,7 @@ func (c *CarinaClient) GetAPIMetadata() (*APIMetadata, error) {
 	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&metadata)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	return metadata, nil
