@@ -204,20 +204,3 @@ func TestMicroversionUnsupportedGetCredentials(t *testing.T) {
 	}
 	assertMicroversionUnsupportedHandled(t, err)
 }
-
-func TestMicroversionUnsupportedGetAPIMetadata(t *testing.T) {
-	mockCarina, mockIdentity := createMockCarina(microversionUnsupportedHandler)
-	defer mockCarina.Close()
-	defer mockIdentity.Close()
-
-	carinaClient, err := createMockCarinaClient(mockIdentity.URL+"/v2.0/", mockCarina.URL)
-	if err != nil {
-		t.Error("wasn't able to create carinaClient pointed at mockCarina.URL with error:", err)
-		t.FailNow()
-	}
-	resp, err := carinaClient.GetAPIMetadata()
-	if resp != nil {
-		t.Error("expected nil response, got", resp)
-	}
-	assertMicroversionUnsupportedHandled(t, err)
-}

@@ -471,20 +471,3 @@ func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
 }
-
-// GetAPIMetadata returns metadata about the Carina API
-func (c *CarinaClient) GetAPIMetadata() (*APIMetadata, error) {
-	resp, err := c.NewRequest("GET", "/", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	metadata := &APIMetadata{}
-	defer resp.Body.Close()
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return metadata, nil
-}
