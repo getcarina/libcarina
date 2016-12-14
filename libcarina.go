@@ -38,8 +38,8 @@ type HTTPErr struct {
 	Body       string
 }
 
-// CarinaErrorResponse represents the response returned by Carina when a request fails
-type CarinaErrorResponse struct {
+// CarinaGenericErrorResponse represents the response returned by Carina when a request fails
+type CarinaGenericErrorResponse struct {
 	Errors []CarinaError `json:"errors"`
 }
 
@@ -52,8 +52,21 @@ type CarinaError struct {
 	Title     string `json:"title"`
 }
 
-func (err HTTPErr) Error() string {
-	var carinaResp CarinaErrorResponse
+// CarinaUnacceptableErrorResonse represents the response returned by Carina when the StatusCode is 406
+type CarinaUnacceptableErrorResonse struct {
+	Errors []CarinaUnacceptableError `json:"errors"`
+}
+
+// CarinaUnacceptableError represents a 406 response from the Carina API
+type CarinaUnacceptableError struct {
+	CarinaError
+	MaxVersion string `json:"max_version"`
+	MinVersion string `json:"min_version"`
+}
+
+// genericError is a multi-purpose error formatter for generic errors from the Carina API
+func (err HTTPErr) genericError() string {
+	var carinaResp CarinaGenericErrorResponse
 
 	jsonErr := json.Unmarshal([]byte(err.Body), &carinaResp)
 	if jsonErr != nil {
@@ -68,6 +81,40 @@ func (err HTTPErr) Error() string {
 		errorMessages.WriteString(carinaErr.Detail)
 	}
 	return fmt.Sprintf("%s %s (%d)%s", err.Method, err.URL, err.StatusCode, errorMessages.String())
+}
+
+// unacceptableError is a error formatter for parsing a 406 response from the Carina API
+func (err HTTPErr) unacceptableError() string {
+	var carinaResp CarinaUnacceptableErrorResonse
+
+	jsonErr := json.Unmarshal([]byte(err.Body), &carinaResp)
+	if jsonErr != nil {
+		return err.genericError()
+	}
+
+	var errorMessages bytes.Buffer
+	for _, carinaErr := range carinaResp.Errors {
+		errorMessages.WriteString("\nMessage: ")
+		errorMessages.WriteString(carinaErr.Title)
+		errorMessages.WriteString(" - The client supports ")
+		errorMessages.WriteString(SupportedAPIVersion)
+		errorMessages.WriteString(" while the server supports ")
+		errorMessages.WriteString(carinaErr.MinVersion)
+		errorMessages.WriteString(" - ")
+		errorMessages.WriteString(carinaErr.MaxVersion)
+		errorMessages.WriteString(".")
+	}
+	return fmt.Sprintf("%s %s (%d)%s", err.Method, err.URL, err.StatusCode, errorMessages.String())
+}
+
+// Error routes to either genericError or other, more-specific, response formatters to give provide a user-friendly error
+func (err HTTPErr) Error() string {
+	switch err.StatusCode {
+	default:
+		return err.genericError()
+	case 406:
+		return err.unacceptableError()
+	}
 }
 
 // NewClient create an authenticated CarinaClient
@@ -423,21 +470,4 @@ func (c *CarinaClient) Delete(token string) (*Cluster, error) {
 	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
-}
-
-// GetAPIMetadata returns metadata about the Carina API
-func (c *CarinaClient) GetAPIMetadata() (*APIMetadata, error) {
-	resp, err := c.NewRequest("GET", "/", nil)
-	if err != nil {
-		return nil, err
-	}
-
-	metadata := &APIMetadata{}
-	defer resp.Body.Close()
-	err = json.NewDecoder(resp.Body).Decode(&metadata)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	return metadata, nil
 }
