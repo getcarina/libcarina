@@ -3,274 +3,416 @@ package libcarina
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"path"
-	"reflect"
-	"strconv"
+	"regexp"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/rackspace"
 )
 
-// BetaEndpoint reflects the default endpoint for this library
-const BetaEndpoint = "https://app.getcarina.com"
-const mimetypeJSON = "application/json"
-const authHeaderKey = "X-Auth-Token"
-const userAgent = "getcarina/libcarina"
+// UserAgentPrefix is the default user agent string, consumers should append their application version to CarinaClient.UserAgent
+const UserAgentPrefix = "getcarina/libcarina"
 
-// ZipURLResponse is the response that comes back from the zip endpoint
-type ZipURLResponse struct {
-	URL string `json:"zip_url"`
+// CarinaClient accesses Carina directly
+type CarinaClient struct {
+	Client    *http.Client
+	Username  string
+	Token     string
+	Endpoint  string
+	UserAgent string
 }
 
-// ClusterClient accesses Carina directly
-type ClusterClient struct {
-	Client   *http.Client
-	Username string
-	Token    string
-	Endpoint string
+// HTTPErr is returned when API requests are not successful
+type HTTPErr struct {
+	Method     string
+	URL        string
+	StatusCode int
+	Status     string
+	Body       string
 }
 
-// ErrorResponse is the JSON formatted error response from Carina
-type ErrorResponse struct {
-	Error string `json:"error"`
+// CarinaGenericErrorResponse represents the response returned by Carina when a request fails
+type CarinaGenericErrorResponse struct {
+	Errors []CarinaError `json:"errors"`
 }
 
-// Cluster is a cluster
-type Cluster struct {
-	ClusterName string `json:"cluster_name"`
-	Username    string `json:"username"`
-
-	// Flavor of compute to use for cluster, should be a default value currently
-	Flavor string `json:"flavor,omitempty"`
-
-	// UUID of image to use for cluster, should be a default value currently
-	Image string `json:"image,omitempty"`
-
-	// Node is optional, but allowed on create
-	// Sadly it comes back as string instead of int in all cases
-	// with the API
-	Nodes Number `json:"nodes,omitempty"`
-
-	AutoScale bool   `json:"autoscale,omitempty"`
-	Status    string `json:"status,omitempty"`
-	TaskID    string `json:"task_id,omitempty"`
-	Token     string `json:"token,omitempty"`
+// CarinaError represents an error message from the Carina API
+type CarinaError struct {
+	Code      string `json:"code"`
+	Detail    string `json:"detail"`
+	RequestID string `json:"request_id"`
+	Status    int    `json:"status"`
+	Title     string `json:"title"`
 }
 
-// Credentials holds the keys to the kingdom
-type Credentials struct {
-	README     []byte
-	Cert       []byte
-	Key        []byte
-	CA         []byte
-	CAKey      []byte
-	DockerEnv  []byte
-	DockerCmd  []byte
-	DockerPS1  []byte
-	DockerHost string
-	Files      map[string][]byte
-	DockerFish []byte
+// CarinaUnacceptableErrorResonse represents the response returned by Carina when the StatusCode is 406
+type CarinaUnacceptableErrorResonse struct {
+	Errors []CarinaUnacceptableError `json:"errors"`
 }
 
-type Quotas struct {
-	MaxClusters        Number `json:"max_clusters"`
-	MaxNodesPerCluster Number `json:"max_nodes_per_cluster"`
+// CarinaUnacceptableError represents a 406 response from the Carina API
+type CarinaUnacceptableError struct {
+	CarinaError
+	MaxVersion string `json:"max_version"`
+	MinVersion string `json:"min_version"`
 }
 
-// Number - specify this type for any struct fields that
-// might be unmarshaled from JSON numbers of the following
-// types: floats, integers, scientific notation, or strings
-type Number float64
+// genericError is a multi-purpose error formatter for generic errors from the Carina API
+func (err HTTPErr) genericError() string {
+	var carinaResp CarinaGenericErrorResponse
 
-// Int64 return the Int64 version of this
-func (n Number) Int64() int64 {
-	return int64(n)
+	jsonErr := json.Unmarshal([]byte(err.Body), &carinaResp)
+	if jsonErr != nil {
+		return fmt.Sprintf("%s %s (%d)", err.Method, err.URL, err.StatusCode)
+	}
+
+	var errorMessages bytes.Buffer
+	for _, carinaErr := range carinaResp.Errors {
+		errorMessages.WriteString("\nMessage: ")
+		errorMessages.WriteString(carinaErr.Title)
+		errorMessages.WriteString(" - ")
+		errorMessages.WriteString(carinaErr.Detail)
+	}
+	return fmt.Sprintf("%s %s (%d)%s", err.Method, err.URL, err.StatusCode, errorMessages.String())
 }
 
-// Int return the Int version of this
-func (n Number) Int() int {
-	return int(n)
+// unacceptableError is a error formatter for parsing a 406 response from the Carina API
+func (err HTTPErr) unacceptableError() string {
+	var carinaResp CarinaUnacceptableErrorResonse
+
+	jsonErr := json.Unmarshal([]byte(err.Body), &carinaResp)
+	if jsonErr != nil {
+		return err.genericError()
+	}
+
+	var errorMessages bytes.Buffer
+	for _, carinaErr := range carinaResp.Errors {
+		errorMessages.WriteString("\nMessage: ")
+		errorMessages.WriteString(carinaErr.Title)
+		errorMessages.WriteString(" - The client supports ")
+		errorMessages.WriteString(SupportedAPIVersion)
+		errorMessages.WriteString(" while the server supports ")
+		errorMessages.WriteString(carinaErr.MinVersion)
+		errorMessages.WriteString(" - ")
+		errorMessages.WriteString(carinaErr.MaxVersion)
+		errorMessages.WriteString(".")
+	}
+	return fmt.Sprintf("%s %s (%d)%s", err.Method, err.URL, err.StatusCode, errorMessages.String())
 }
 
-// Float64 return the Float64 version of this
-func (n Number) Float64() float64 {
-	return float64(n)
+// Error routes to either genericError or other, more-specific, response formatters to give provide a user-friendly error
+func (err HTTPErr) Error() string {
+	switch err.StatusCode {
+	default:
+		return err.genericError()
+	case 406:
+		return err.unacceptableError()
+	}
 }
 
-// UnmarshalJSON required to enforce that string values are attempted to be parsed as numbers
-func (n *Number) UnmarshalJSON(data []byte) error {
-	var f float64
-	var err error
-	if data[0] == '"' {
-		f, err = strconv.ParseFloat(string(data[1:len(data)-1]), 64)
+// NewClient create an authenticated CarinaClient
+func NewClient(username string, apikey string, region string, authEndpointOverride string, cachedToken string, cachedEndpoint string) (*CarinaClient, error) {
+	authEndpoint := rackspace.RackspaceUSIdentity
+	if authEndpointOverride != "" {
+		authEndpoint = authEndpointOverride
+	}
+
+	verifyToken := func() error {
+		req, err := http.NewRequest("HEAD", authEndpoint+"tokens/"+cachedToken, nil)
 		if err != nil {
-			return &json.UnmarshalTypeError{
-				Value: string(data),
-				Type:  reflect.TypeOf(*n),
-			}
+			return errors.WithStack(err)
 		}
-	} else {
-		if err := json.Unmarshal(data, &f); err != nil {
-			return &json.UnmarshalTypeError{
-				Value: string(data),
-				Type:  reflect.TypeOf(*n),
-			}
+
+		req.Header.Add("Accept", "application/json")
+		req.Header.Add("X-Auth-Token", cachedToken)
+		req.Header.Add("User-Agent", UserAgentPrefix)
+
+		httpClient := &http.Client{}
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return errors.WithStack(err)
 		}
-	}
-	*n = Number(f)
-	return nil
-}
 
-func newClusterClient(endpoint string, ao gophercloud.AuthOptions) (*ClusterClient, error) {
-	provider, err := rackspace.AuthenticatedClient(ao)
-	if err != nil {
-		return nil, err
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return fmt.Errorf("Cached token is invalid")
+		}
+
+		return nil
 	}
 
-	return &ClusterClient{
-		Client:   &http.Client{},
-		Username: ao.Username,
-		Token:    provider.TokenID,
-		Endpoint: endpoint,
+	// Attempt to authenticate with the cached token first, falling back on the apikey
+	if cachedToken == "" || verifyToken() != nil {
+		ao := &gophercloud.AuthOptions{
+			Username:         username,
+			APIKey:           apikey,
+			IdentityEndpoint: authEndpoint,
+		}
+
+		provider, err := rackspace.AuthenticatedClient(*ao)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+		cachedToken = provider.TokenID
+
+		eo := gophercloud.EndpointOpts{Region: region}
+		eo.ApplyDefaults(CarinaEndpointType)
+		url, err := provider.EndpointLocator(eo)
+		if err != nil {
+			return nil, errors.WithStack(err)
+		}
+
+		cachedEndpoint = strings.TrimRight(url, "/")
+	}
+
+	return &CarinaClient{
+		Client:    &http.Client{},
+		Username:  username,
+		Token:     cachedToken,
+		Endpoint:  cachedEndpoint,
+		UserAgent: UserAgentPrefix,
 	}, nil
 }
 
-// NewClusterClient create a new clusterclient by API Key
-func NewClusterClient(endpoint, username, apikey string) (*ClusterClient, error) {
-	ao := gophercloud.AuthOptions{
-		Username:         username,
-		APIKey:           apikey,
-		IdentityEndpoint: rackspace.RackspaceUSIdentity,
-	}
-
-	return newClusterClient(endpoint, ao)
-}
-
 // NewRequest handles a request using auth used by Carina
-func (c *ClusterClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
+func (c *CarinaClient) NewRequest(method string, uri string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequest(method, c.Endpoint+uri, body)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Add("Content-Type", mimetypeJSON)
-	req.Header.Add("Accept", mimetypeJSON)
-	req.Header.Add(authHeaderKey, c.Token)
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/json")
+	req.Header.Add("X-Auth-Token", c.Token)
+	req.Header.Set("User-Agent", c.UserAgent)
+	req.Header.Add("API-Version", CarinaEndpointType+" "+SupportedAPIVersion)
+
 	resp, err := c.Client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	if resp.StatusCode >= 400 {
-		if resp.Body == nil {
-			return nil, errors.New(resp.Status)
+		err := HTTPErr{
+			Method:     req.Method,
+			URL:        req.URL.String(),
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
 		}
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
-		}
-		return nil, errors.New(string(b))
+		defer resp.Body.Close()
+		b, _ := ioutil.ReadAll(resp.Body)
+		err.Body = string(b)
+		return nil, errors.WithStack(err)
 	}
 
 	return resp, nil
 }
 
 // List the current clusters
-func (c *ClusterClient) List() ([]Cluster, error) {
-	clusters := []Cluster{}
-
-	resp, err := c.NewRequest("GET", "/clusters/"+c.Username, nil)
+func (c *CarinaClient) List() ([]*Cluster, error) {
+	resp, err := c.NewRequest("GET", "/clusters", nil)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.NewDecoder(resp.Body).Decode(&clusters)
-	if err != nil {
-		return nil, err
+	var result struct {
+		Clusters []*Cluster `json:"clusters"`
 	}
-	return clusters, nil
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return result.Clusters, nil
 }
 
 func clusterFromResponse(resp *http.Response, err error) (*Cluster, error) {
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
-	cluster := new(Cluster)
+
+	cluster := &Cluster{}
+	defer resp.Body.Close()
 	err = json.NewDecoder(resp.Body).Decode(&cluster)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 	return cluster, nil
 }
 
-// Get a cluster by cluster name
-func (c *ClusterClient) Get(clusterName string) (*Cluster, error) {
-	uri := path.Join("/clusters", c.Username, clusterName)
+func isClusterID(token string) bool {
+	r := regexp.MustCompile("^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
+	return r.MatchString(token)
+}
+
+func (c *CarinaClient) lookupClusterName(token string) (string, error) {
+	if !isClusterID(token) {
+		return token, nil
+	}
+
+	clusters, err := c.List()
+	if err != nil {
+		return "", err
+	}
+
+	var name string
+	for _, cluster := range clusters {
+		if strings.ToLower(cluster.ID) == strings.ToLower(token) {
+			name = cluster.Name
+			break
+		}
+	}
+
+	if name == "" {
+		return "", HTTPErr{
+			StatusCode: http.StatusNotFound,
+			Status:     "404 NOT FOUND",
+			Body:       `{"message": "Cluster "` + token + ` not found"}`}
+	}
+
+	return name, nil
+}
+
+func (c *CarinaClient) lookupClusterID(token string) (string, error) {
+	if isClusterID(token) {
+		return token, nil
+	}
+
+	clusters, err := c.List()
+	if err != nil {
+		return "", err
+	}
+
+	var id string
+	for _, cluster := range clusters {
+		if strings.ToLower(cluster.Name) == strings.ToLower(token) {
+			if id != "" {
+				return "", fmt.Errorf("The cluster (%s) is not unique. Retry the request using the cluster id", token)
+			}
+			id = cluster.ID
+		}
+	}
+
+	if id == "" {
+		return "", HTTPErr{
+			StatusCode: http.StatusNotFound,
+			Status:     "404 NOT FOUND",
+			Body:       `{"message": "Cluster "` + token + ` not found"}`}
+	}
+
+	return id, nil
+}
+
+// ListClusterTypes returns a list of cluster types
+func (c *CarinaClient) ListClusterTypes() ([]*ClusterType, error) {
+	resp, err := c.NewRequest("GET", "/cluster_types", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result struct {
+		Types []*ClusterType `json:"cluster_types"`
+	}
+	defer resp.Body.Close()
+	err = json.NewDecoder(resp.Body).Decode(&result)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	return result.Types, nil
+}
+
+// Get a cluster by cluster by its name or id
+func (c *CarinaClient) Get(token string) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("GET", uri, nil)
 	return clusterFromResponse(resp, err)
 }
 
 // Create a new cluster with cluster options
-func (c *ClusterClient) Create(clusterOpts Cluster) (*Cluster, error) {
-	// Even though username is in the URI path, the API expects the username
-	// inside the body
-	if clusterOpts.Username == "" {
-		clusterOpts.Username = c.Username
-	}
+func (c *CarinaClient) Create(clusterOpts *CreateClusterOpts) (*Cluster, error) {
 	clusterOptsJSON, err := json.Marshal(clusterOpts)
 	if err != nil {
-		return nil, err
+		return nil, errors.WithStack(err)
 	}
 
 	body := bytes.NewReader(clusterOptsJSON)
-	uri := path.Join("/clusters", c.Username)
-	resp, err := c.NewRequest("POST", uri, body)
+	resp, err := c.NewRequest("POST", "/clusters", body)
 	return clusterFromResponse(resp, err)
 }
 
-// GetZipURL returns the URL for downloading credentials
-func (c *ClusterClient) GetZipURL(clusterName string) (string, error) {
-	uri := path.Join("/clusters", c.Username, clusterName, "zip")
-	resp, err := c.NewRequest("GET", uri, nil)
+// Resize a cluster with resize task options
+func (c *CarinaClient) Resize(token string, nodes int) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	var zipURLResp ZipURLResponse
-
-	err = json.NewDecoder(resp.Body).Decode(&zipURLResp)
-
+	resizeOpts := newResizeOpts(nodes)
+	resizeOptsJSON, err := json.Marshal(resizeOpts)
 	if err != nil {
-		return "", err
+		return nil, errors.WithStack(err)
 	}
 
-	return zipURLResp.URL, nil
+	body := bytes.NewReader(resizeOptsJSON)
+	uri := path.Join("/clusters", id, "tasks")
+	resp, err := c.NewRequest("POST", uri, body)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	return c.Get(token)
 }
 
 // GetCredentials returns a Credentials struct for the given cluster name
-func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error) {
-	url, err := c.GetZipURL(clusterName)
+func (c *CarinaClient) GetCredentials(token string) (*CredentialsBundle, error) {
+	id, err := c.lookupClusterID(token)
 	if err != nil {
 		return nil, err
 	}
-	zr, err := fetchZip(url)
-	if err != nil || len(zr.File) < 6 {
+
+	name, err := c.lookupClusterName(token)
+	if err != nil {
 		return nil, err
 	}
 
-	// fetch the contents for each credential/note
-	creds := new(Credentials)
-	creds.Files = make(map[string][]byte)
-	for _, zf := range zr.File {
+	uri := path.Join("/clusters", id, "credentials/zip")
+	resp, err := c.NewRequest("GET", uri, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read the body as a zip file
+	buf := &bytes.Buffer{}
+	_, err = io.Copy(buf, resp.Body)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	b := bytes.NewReader(buf.Bytes())
+	zipr, err := zip.NewReader(b, int64(b.Len()))
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+
+	// Fetch the contents for each file in the zipfile
+	creds := NewCredentialsBundle()
+	for _, zf := range zipr.File {
 		_, fname := path.Split(zf.Name)
 		fi := zf.FileInfo()
 
@@ -281,213 +423,51 @@ func (c *ClusterClient) GetCredentials(clusterName string) (*Credentials, error)
 
 		rc, err := zf.Open()
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 
 		b, err := ioutil.ReadAll(rc)
 		if err != nil {
-			return nil, err
+			return nil, errors.WithStack(err)
 		}
 		creds.Files[fname] = b
-
-		switch fname {
-		case "ca.pem":
-			creds.CA = b
-		case "README.md":
-			creds.README = b
-		case "ca-key.pem":
-			creds.CAKey = b
-		case "docker.env":
-			creds.DockerEnv = b
-		case "cert.pem":
-			creds.Cert = b
-		case "key.pem":
-			creds.Key = b
-		case "docker.ps1":
-			creds.DockerPS1 = b
-		case "docker.cmd":
-			creds.DockerCmd = b
-		case "docker.fish":
-			creds.DockerFish = b
-		}
-
 	}
 
-	appendClusterName(clusterName, creds)
-
-	sourceLines := strings.Split(string(creds.DockerEnv), "\n")
-	for _, line := range sourceLines {
-		if strings.Index(line, "export ") == 0 {
-			varDecl := strings.TrimRight(line[7:], "\n")
-			eqLocation := strings.Index(varDecl, "=")
-
-			varName := varDecl[:eqLocation]
-			varValue := varDecl[eqLocation+1:]
-
-			switch varName {
-			case "DOCKER_HOST":
-				creds.DockerHost = varValue
-			}
-
-		}
-	}
+	appendClusterName(name, creds)
 
 	return creds, nil
 }
 
-func appendClusterName(name string, creds *Credentials) {
-	var stmt string
-
-	stmt = fmt.Sprintf("export CARINA_CLUSTER_NAME=%s\n", name)
-	creds.DockerEnv = append(creds.DockerEnv, []byte(stmt)...)
-	creds.Files["docker.env"] = creds.DockerEnv
-
-	stmt = fmt.Sprintf("set -x CARINA_CLUSTER_NAME %s\n", name)
-	creds.DockerFish = append(creds.DockerFish, []byte(stmt)...)
-	creds.Files["docker.fish"] = creds.DockerFish
-
-	stmt = fmt.Sprintf("$env:CARINA_CLUSTER_NAME=\"%s\"\n", name)
-	creds.DockerPS1 = append(creds.DockerPS1, []byte(stmt)...)
-	creds.Files["docker.ps1"] = creds.DockerPS1
-
-	stmt = fmt.Sprintf("set CARINA_CLUSTER_NAME=%s\n", name)
-	creds.DockerCmd = append(creds.DockerCmd, []byte(stmt)...)
-	creds.Files["docker.cmd"] = creds.DockerCmd
-}
-
-// GetDockerConfig returns the hostname and tls.Config for a given clustername
-func (c *ClusterClient) GetDockerConfig(clusterName string) (hostname string, tlsConfig *tls.Config, err error) {
-	creds, err := c.GetCredentials(clusterName)
-	if err != nil {
-		return "", nil, err
-	}
-	tlsConfig, err = creds.GetTLSConfig()
-	return creds.DockerHost, tlsConfig, err
-}
-
-// GetTLSConfig returns a tls.Config for a credential set
-func (creds *Credentials) GetTLSConfig() (*tls.Config, error) {
-	// TLS config
-	var tlsConfig tls.Config
-	tlsConfig.InsecureSkipVerify = true
-	certPool := x509.NewCertPool()
-
-	certPool.AppendCertsFromPEM(creds.CA)
-	tlsConfig.RootCAs = certPool
-	keypair, err := tls.X509KeyPair(creds.Cert, creds.Key)
-	if err != nil {
-		return &tlsConfig, err
-	}
-	tlsConfig.Certificates = []tls.Certificate{keypair}
-
-	return &tlsConfig, nil
-}
-
-func fetchZip(zipurl string) (*zip.Reader, error) {
-	req, err := http.NewRequest("GET", zipurl, nil)
-	if err != nil {
-		return nil, err
+// Set the CLUSTER_NAME environment variable in the scripts
+func appendClusterName(name string, creds *CredentialsBundle) {
+	addStmt := func(fileName string, stmt string) {
+		script := creds.Files[fileName]
+		script = append(script, []byte(stmt)...)
+		creds.Files[fileName] = script
 	}
 
-	req.Header.Set("User-Agent", userAgent)
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		b, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, errors.New(resp.Status)
+	for fileName := range creds.Files {
+		switch fileName {
+		case "docker.env", "kubectl.env":
+			addStmt(fileName, fmt.Sprintf("\nexport CARINA_CLUSTER_NAME=%s\n", name))
+		case "docker.fish", "kubectl.fish":
+			addStmt(fileName, fmt.Sprintf("\nset -x CARINA_CLUSTER_NAME %s\n", name))
+		case "docker.ps1", "kubectl.ps1":
+			addStmt(fileName, fmt.Sprintf("\n$env:CARINA_CLUSTER_NAME=\"%s\"\n", name))
+		case "docker.cmd", "kubectl.cmd":
+			addStmt(fileName, fmt.Sprintf("\nset CARINA_CLUSTER_NAME=%s\n", name))
 		}
-		return nil, errors.New(string(b))
 	}
-
-	buf := &bytes.Buffer{}
-
-	_, err = io.Copy(buf, resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	b := bytes.NewReader(buf.Bytes())
-	return zip.NewReader(b, int64(b.Len()))
-}
-
-// Grow increases a cluster by the provided number of nodes
-func (c *ClusterClient) Grow(clusterName string, nodes int) (*Cluster, error) {
-	incr := map[string]int{
-		"nodes": nodes,
-	}
-
-	growthRequest, err := json.Marshal(incr)
-	if err != nil {
-		return nil, err
-	}
-	r := bytes.NewReader(growthRequest)
-
-	uri := path.Join("/clusters", c.Username, clusterName, "grow")
-	resp, err := c.NewRequest("POST", uri, r)
-	return clusterFromResponse(resp, err)
-}
-
-// SetAutoScale enables or disables autoscale on an already running cluster
-func (c *ClusterClient) SetAutoScale(clusterName string, autoscale bool) (*Cluster, error) {
-	setAutoscale := "false"
-	if autoscale {
-		setAutoscale = "true"
-	}
-	uri := path.Join("/clusters", c.Username, clusterName, "autoscale", setAutoscale)
-	resp, err := c.NewRequest("PUT", uri, nil)
-	return clusterFromResponse(resp, err)
-}
-
-const rebuildSwarmAction = "rebuild-swarm"
-
-type actionRequest struct {
-	Action string `json:"action"`
-}
-
-func (c *ClusterClient) doAction(clusterName, action string) (*Cluster, error) {
-	actionReq, err := json.Marshal(actionRequest{Action: action})
-	if err != nil {
-		return nil, err
-	}
-	r := bytes.NewReader(actionReq)
-	uri := path.Join("/clusters", c.Username, clusterName, "action")
-	resp, err := c.NewRequest("POST", uri, r)
-	return clusterFromResponse(resp, err)
-}
-
-// Rebuild creates a wholly new Swarm cluster
-func (c *ClusterClient) Rebuild(clusterName string) (*Cluster, error) {
-	return c.doAction(clusterName, rebuildSwarmAction)
 }
 
 // Delete nukes a cluster out of existence
-func (c *ClusterClient) Delete(clusterName string) (*Cluster, error) {
-	uri := path.Join("/clusters", c.Username, clusterName)
+func (c *CarinaClient) Delete(token string) (*Cluster, error) {
+	id, err := c.lookupClusterID(token)
+	if err != nil {
+		return nil, err
+	}
+
+	uri := path.Join("/clusters", id)
 	resp, err := c.NewRequest("DELETE", uri, nil)
 	return clusterFromResponse(resp, err)
-}
-
-func quotasFromResponse(resp *http.Response) (*Quotas, error) {
-	quotas := new(Quotas)
-	err := json.NewDecoder(resp.Body).Decode(&quotas)
-	if err != nil {
-		return nil, err
-	}
-	return quotas, nil
-}
-
-func (c *ClusterClient) GetQuotas() (*Quotas, error) {
-	uri := path.Join("/quotas", c.Username)
-	resp, err := c.NewRequest("GET", uri, nil)
-	if err != nil {
-		return nil, err
-	}
-	return quotasFromResponse(resp)
 }
