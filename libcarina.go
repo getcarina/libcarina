@@ -449,13 +449,13 @@ func appendClusterName(name string, creds *CredentialsBundle) {
 	for fileName := range creds.Files {
 		switch fileName {
 		case "docker.env", "kubectl.env":
-			addStmt(fileName, fmt.Sprintf("export CARINA_CLUSTER_NAME=%s\n", name))
+			addStmt(fileName, fmt.Sprintf("\nexport CARINA_CLUSTER_NAME=%s\n", name))
 		case "docker.fish", "kubectl.fish":
-			addStmt(fileName, fmt.Sprintf("set -x CARINA_CLUSTER_NAME %s\n", name))
+			addStmt(fileName, fmt.Sprintf("\nset -x CARINA_CLUSTER_NAME %s\n", name))
 		case "docker.ps1", "kubectl.ps1":
-			addStmt(fileName, fmt.Sprintf("$env:CARINA_CLUSTER_NAME=\"%s\"\n", name))
+			addStmt(fileName, fmt.Sprintf("\n$env:CARINA_CLUSTER_NAME=\"%s\"\n", name))
 		case "docker.cmd", "kubectl.cmd":
-			addStmt(fileName, fmt.Sprintf("set CARINA_CLUSTER_NAME=%s\n", name))
+			addStmt(fileName, fmt.Sprintf("\nset CARINA_CLUSTER_NAME=%s\n", name))
 		}
 	}
 }
