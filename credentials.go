@@ -59,12 +59,12 @@ func (creds *CredentialsBundle) GetCA() []byte {
 
 // GetCert returns the contents of cert.pem
 func (creds *CredentialsBundle) GetCert() []byte {
-	return creds.Files["user.pem"]
+	return creds.Files["cert.pem"]
 }
 
 // GetKey returns the contents of key.pem
 func (creds *CredentialsBundle) GetKey() []byte {
-	return creds.Files["user-key.pem"]
+	return creds.Files["key.pem"]
 }
 
 // Verify validates that we can connect to the Docker host specified in the credentials bundle
