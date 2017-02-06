@@ -3,6 +3,9 @@ package libcarina
 // SupportedAPIVersion is the version of the API against which this library was developed
 const SupportedAPIVersion = "1.0"
 
+// LibVersion is the version of this library, and should be keep synchronized with the git tag
+const LibVersion = "2.0.0"
+
 // CarinaEndpointType is the endpoint type in the service catalog
 const CarinaEndpointType = "rax:container"
 

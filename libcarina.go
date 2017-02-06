@@ -17,8 +17,8 @@ import (
 	"github.com/rackspace/gophercloud/rackspace"
 )
 
-// UserAgentPrefix is the default user agent string, consumers should append their application version to CarinaClient.UserAgent
-const UserAgentPrefix = "getcarina/libcarina"
+// UserAgentPrefix is the default user agent string, consumers should append their application version to `CarinaClient.UserAgent`.
+const UserAgentPrefix = "libcarina/" + LibVersion
 
 // CarinaClient accesses Carina directly
 type CarinaClient struct {
